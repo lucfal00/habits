@@ -127,12 +127,14 @@ Un unico documento JSON in `localStorage` (chiave `habits.v1`):
 index.html              shell + tab bar
 style.css               stile, variabili colore, tema chiaro/scuro
 manifest.webmanifest    nome, icone, display standalone
-sw.js                   precache file, cache-first, cache versionata
+sw.js                   precache file, risposta dalla cache + aggiornamento in background, cache versionata
 icons/                  icon.svg, icon-192.png, icon-512.png, apple-touch-icon.png (180)
 js/app.js               avvio, router hash, tema, registrazione SW
 js/store.js             load/save localStorage, CRUD abitudini, set registrazione, export/import
 js/logic.js             date, prevista, frazione, streak, %, merge (puro, testato)
-js/charts.js            SVG: anello, heatmap, linea, barre
+js/charts.js            SVG: anello, heatmap, linea, barre; tooltip al passaggio/tocco
+js/ui.js                escape, formattazione date/numeri, palette colori
+scripts/                make-icons.mjs (PNG senza dipendenze), serve.mjs (server locale)
 js/views/today.js
 js/views/habits.js
 js/views/stats.js

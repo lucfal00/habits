@@ -73,7 +73,7 @@ function renderForm(el, doc, h, today) {
         </div>
       </fieldset>
       <fieldset><legend>Frequenza</legend>
-        <div class="seg">${radio('kind', 'daily', 'Ogni giorno', v.freq.kind === 'daily')}${radio('kind', 'days', 'Alcuni giorni', v.freq.kind === 'days')}${radio('kind', 'weekly', 'N a settimana', v.freq.kind === 'weekly')}</div>
+        <div class="seg">${radio('kind', 'daily', 'Ogni giorno', v.freq.kind === 'daily')}${radio('kind', 'days', 'Alcuni giorni', v.freq.kind === 'days')}${radio('kind', 'weekly', 'Settimanale', v.freq.kind === 'weekly')}</div>
         <div class="days-row if-days">${DAY_LETTERS.map((d, i) => `<label class="pick"><input type="checkbox" name="days" value="${i + 1}"
           ${days.includes(i + 1) ? 'checked' : ''} aria-label="${DAY_SHORT[i]}"><span>${d}</span></label>`).join('')}</div>
         <label class="field if-weekly">Volte a settimana<input name="times" type="number" min="1" max="7" inputmode="numeric" value="${times}"></label>

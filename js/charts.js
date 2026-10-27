@@ -69,7 +69,7 @@ export function heatmap(valueAt, color, today) {
 
 // ---- Shared axes frame -------------------------------------------------
 
-const FRAME = { W: 320, H: 160, L: 36, R: 10, T: 14, B: 24 };
+const FRAME = { W: 320, H: 160, L: 36, R: 16, T: 14, B: 24 };
 
 function xLabels(points, x) {
   const every = Math.ceil(points.length / 6);
@@ -136,8 +136,8 @@ export function barChart(points, target, color, unit, ariaLabel) {
     ${bars}
     <line class="target" x1="${L}" x2="${W - R}" y1="${ty}" y2="${ty}"/>
     <text x="${L - 6}" y="${ty + 3}" text-anchor="end">${fmtNum(target)}</text>
-    <text x="${W - R}" y="${ty - 5}" text-anchor="end">obiettivo</text>
-    ${xLabels(points, (i) => x(i) + bw / 2)}</svg>`;
+    ${xLabels(points, (i) => x(i) + bw / 2)}</svg>
+    <div class="heat-legend"><span class="dash"></span> obiettivo ${fmtNum(target)} ${esc(unit)}</div>`;
 }
 
 // ---- Tooltip -----------------------------------------------------------
