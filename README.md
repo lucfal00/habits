@@ -52,12 +52,14 @@ Se dimentichi la password la copia sul Gist non è recuperabile (i dati sui disp
 
 ## 5. Aggiornamenti
 
-Dopo un `git push` di nuove modifiche, l'app scarica la nuova versione in background:
-è visibile dalla **seconda** apertura successiva (GitHub Pages può impiegare fino a 10 minuti).
-Se aggiungi nuovi file all'app, elencali in `FILES` dentro `sw.js` e incrementa `CACHE` (es. `habits-v3`).
+Dopo un `git push` la pagina arriva sempre dalla rete quando sei online, gli altri file si aggiornano in background:
+chiudi e riapri l'app un paio di volte (GitHub Pages può impiegare fino a 10 minuti).
+Se aggiungi nuovi file all'app, elencali in `FILES` dentro `sw.js` e incrementa `CACHE` (es. `habits-v4`).
 
-L'icona sulla Home dell'iPhone non si aggiorna da sola: collega prima la sincronizzazione (o esporta un backup),
-poi elimina l'icona e aggiungila di nuovo da Safari.
+**Nuova icona:** i dispositivi la memorizzano per nome file, quindi un nuovo disegno va generato con un nome nuovo
+(`scripts/make-icons.mjs`, poi `index.html`, `manifest.webmanifest`, `sw.js`). Sull'iPhone l'icona si aggiorna solo
+eliminandola dalla Home e aggiungendola di nuovo da Safari; su PC disinstallando e reinstallando l'app.
+Prima collega la sincronizzazione (o esporta un backup).
 
 ## 6. Costi e limiti
 

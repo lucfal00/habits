@@ -1,6 +1,6 @@
 // Generates icons/*.png (no dependencies), Windows 11 style: white tile, violet→blue progress ring, check mark.
 // "any" icons keep a transparent margin and a soft shadow; maskable / apple-touch icons are full-bleed (iOS fills
-// transparency with black). Geometry is in 0..100 units and matches icons/icon.svg.
+// transparency with black). Geometry is in 0..100 units and matches icons/habits-v2.svg.
 // Run: node scripts/make-icons.mjs
 import { deflateSync } from 'node:zlib';
 import { writeFileSync, mkdirSync } from 'node:fs';
@@ -132,11 +132,12 @@ export function draw(size, tile, pal = PALETTE) {
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   mkdirSync(OUT, { recursive: true });
+  // Names carry the design version: devices cache icons by URL, so a redesign needs new names.
   const ICONS = [
-    ['icon-192.png', 192, true],
-    ['icon-512.png', 512, true],
-    ['icon-maskable-512.png', 512, false],
-    ['apple-touch-icon.png', 180, false],
+    ['habits-v2-192.png', 192, true],
+    ['habits-v2-512.png', 512, true],
+    ['habits-v2-maskable-512.png', 512, false],
+    ['habits-v2-apple-180.png', 180, false],
   ];
   for (const [name, size, tile] of ICONS) {
     writeFileSync(new URL(name, OUT), draw(size, tile));
