@@ -4,6 +4,7 @@
 // Run: node scripts/make-icons.mjs
 import { deflateSync } from 'node:zlib';
 import { writeFileSync, mkdirSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 
 const OUT = new URL('../icons/', import.meta.url);
 const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
@@ -11,8 +12,10 @@ const BODY_TOP = hex('#ffffff');
 const BODY_BOTTOM = hex('#eceef3');
 const EDGE = hex('#d3d7e0');
 const TRACK = hex('#e2e5ec');
-const ACCENT_A = hex('#8b5cf6');      // violet, top-left
-const ACCENT_B = hex('#3b82f6');      // blue, bottom-right
+
+/** ring: two gradient stops (top-left → bottom-right) or `segments` along the arc; check: colour or null (= ring). */
+// Muted to sit with the Windows 11 Notes/Calendar/To Do icons (accents sampled ≈ #7593b7, #769958, #d4937f).
+export const PALETTE = { ring: ['#9a86de', '#6c8fd0'], segments: null, check: null };
 const RING_R = 26;
 const STROKE = 7.5;
 const CHECK = [[39, 51], [47, 59], [62, 43]];
@@ -79,7 +82,10 @@ function over(dst, rgb, a) {
   dst[3] = outA;
 }
 
-function draw(size, tile) {
+export function draw(size, tile, pal = PALETTE) {
+  const [ringA, ringB] = pal.ring.map(hex);
+  const segments = pal.segments?.map(hex);
+  const checkColor = pal.check && hex(pal.check);
   const s = size / 100;                                  // pixels per unit
   const px1 = 1 / s;                                     // one pixel in units
   const cover = (d, half) => clamp01((half - d) / px1 + 0.5);
@@ -101,32 +107,39 @@ function draw(size, tile) {
       } else {
         over(c, body, 1);
       }
-      const accent = lerp(ACCENT_A, ACCENT_B, clamp01((u + v - 48) / 104));
+      const accent = lerp(ringA, ringB, clamp01((u + v - 48) / 104));
       const dr = Math.abs(Math.hypot(u - 50, v - 50) - RING_R);
       over(c, TRACK, cover(dr, STROKE / 2));
       let ang = Math.atan2(u - 50, -(v - 50));
       if (ang < 0) ang += 2 * Math.PI;
-      const arc = ang <= arcEnd
+      const inArc = ang <= arcEnd;
+      const arc = inArc
         ? cover(dr, STROKE / 2)
         : Math.max(cover(Math.hypot(u - 50, v - 50 + RING_R), STROKE / 2),
           cover(Math.hypot(u - capEnd[0], v - capEnd[1]), STROKE / 2));
-      over(c, accent, arc);
+      const ringColor = segments
+        ? segments[inArc ? Math.min(segments.length - 1, Math.floor((ang / arcEnd) * segments.length))
+          : (ang > arcEnd + (2 * Math.PI - arcEnd) / 2 ? 0 : segments.length - 1)]
+        : accent;
+      over(c, ringColor, arc);
       const check = Math.min(segDist(u, v, CHECK[0], CHECK[1]), segDist(u, v, CHECK[1], CHECK[2]));
-      over(c, accent, cover(check, STROKE / 2));
+      over(c, checkColor ?? accent, cover(check, STROKE / 2));
       out.set(c.map((ch, i) => Math.round(i === 3 ? ch * 255 : ch)), (y * size + x) * 4);
     }
   }
   return png(size, out);
 }
 
-mkdirSync(OUT, { recursive: true });
-const ICONS = [
-  ['icon-192.png', 192, true],
-  ['icon-512.png', 512, true],
-  ['icon-maskable-512.png', 512, false],
-  ['apple-touch-icon.png', 180, false],
-];
-for (const [name, size, tile] of ICONS) {
-  writeFileSync(new URL(name, OUT), draw(size, tile));
-  console.log('wrote icons/' + name);
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+  mkdirSync(OUT, { recursive: true });
+  const ICONS = [
+    ['icon-192.png', 192, true],
+    ['icon-512.png', 512, true],
+    ['icon-maskable-512.png', 512, false],
+    ['apple-touch-icon.png', 180, false],
+  ];
+  for (const [name, size, tile] of ICONS) {
+    writeFileSync(new URL(name, OUT), draw(size, tile));
+    console.log('wrote icons/' + name);
+  }
 }
