@@ -2,7 +2,7 @@
 import {
   activeHabits, isScheduled, valueOf, fraction, weekCount, dayPercent, currentStreak, addDays,
 } from '../logic.js';
-import { setEntry, exportBackup } from '../store.js';
+import { setEntry, exportBackup, getSync } from '../store.js';
 import { ring } from '../charts.js';
 import { esc, safeColor, fmtDay, fmtNum, pct, parseNum } from '../ui.js';
 
@@ -45,7 +45,9 @@ export function render(el, { doc, today, refresh }) {
   const doneCount = daily.filter((h) => fraction(h, valueOf(doc, day, h.id)) >= 1).length;
   const p = dayPercent(doc, day);
   const title = day === today ? 'Oggi' : day === addDays(today, -1) ? 'Ieri' : fmtDay(day).split(' ')[0];
-  const backupDue = all.length && Date.now() - (doc.settings.lastBackup || 0) > WEEK_MS;
+  // With sync connected the data already lives on the Gist: no reminder.
+  const lastBackup = doc.settings.lastBackup || 0;
+  const backupDue = all.length && !getSync().connected && Date.now() - lastBackup > WEEK_MS;
 
   let body;
   if (!all.length) {
@@ -68,8 +70,11 @@ export function render(el, { doc, today, refresh }) {
       <div class="grow"><h1>${title}</h1><small>${fmtDay(day)}</small></div>
       <button class="icon-btn" data-act="next" aria-label="Giorno successivo" ${day >= today ? 'disabled' : ''}>›</button>
     </header>
-    ${backupDue ? `<div class="card notice"><p>Non fai un backup da più di 7 giorni.</p>
+    ${backupDue && lastBackup ? `<div class="card notice"><p>Non fai un backup da più di 7 giorni.</p>
       <button class="btn" data-act="backup">Esporta</button></div>` : ''}
+    ${backupDue && !lastBackup ? `<div class="card notice"><p>I tuoi dati sono solo su questo dispositivo:
+      collega la sincronizzazione o esporta un backup.</p>
+      <a class="btn" href="#impostazioni">Impostazioni</a></div>` : ''}
     ${body}`;
 
   el.onclick = async (e) => {
