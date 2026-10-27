@@ -14,7 +14,8 @@ export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ESC[c]);
 export const safeColor = (c) => (/^#[0-9a-f]{6}$/i.test(c) ? c : COLORS[0]);
 
 const dayFmt = new Intl.DateTimeFormat('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
-export const fmtDay = (key) => dayFmt.format(fromKey(key));
+export const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+export const fmtDay = (key) => cap(dayFmt.format(fromKey(key)));
 export const fmtShort = (key) => `${+key.slice(8)}/${+key.slice(5, 7)}`;
 export const fmtFull = (key) => `${fmtShort(key)}/${key.slice(0, 4)}`;
 export const fmtNum = (n) => n.toLocaleString('it-IT', { maximumFractionDigits: 2 });

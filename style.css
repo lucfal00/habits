@@ -88,7 +88,7 @@ button { cursor: pointer; }
 /* ---- Header --------------------------------------------------------- */
 .top { display: flex; align-items: center; gap: 12px; margin: 8px 0 16px; min-height: 44px; }
 .top .grow { flex: 1; min-width: 0; }
-.top small { display: block; text-transform: capitalize; }
+.top small { display: block; }
 .back { text-decoration: none; font-weight: 600; }
 .icon-btn {
   width: 40px; height: 40px; flex: none;
