@@ -1,14 +1,17 @@
 // Offline: answer from cache, refresh the cache in the background (next launch gets updates).
-const CACHE = 'habits-v1';
+const CACHE = 'habits-v2';
 const FILES = [
   './', './index.html', './style.css', './manifest.webmanifest',
-  './js/app.js', './js/store.js', './js/logic.js', './js/charts.js', './js/ui.js',
+  './js/app.js', './js/store.js', './js/logic.js', './js/charts.js', './js/ui.js', './js/crypto.js', './js/sync.js',
   './js/views/today.js', './js/views/habits.js', './js/views/stats.js', './js/views/settings.js',
-  './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png',
+  './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png',
+  './icons/apple-touch-icon.png',
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));
+  // 'reload' bypasses the HTTP cache (GitHub Pages sends max-age=600) so a new version precaches fresh files.
+  const requests = FILES.map((f) => new Request(f, { cache: 'reload' }));
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(requests)).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {

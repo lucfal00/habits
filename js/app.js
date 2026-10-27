@@ -21,6 +21,12 @@ function route() {
   };
 }
 
+function updateBanner() {
+  const notice = store.getNotice();
+  banner.hidden = !notice;
+  banner.querySelector('span').textContent = notice;
+}
+
 function render() {
   const doc = store.getDoc();
   const { name, param } = route();
@@ -28,9 +34,7 @@ function render() {
   if (doc.settings.theme === 'auto') delete root.dataset.theme;
   else root.dataset.theme = doc.settings.theme;
 
-  const notice = store.getNotice();
-  banner.hidden = !notice;
-  banner.querySelector('span').textContent = notice;
+  updateBanner();
 
   document.querySelectorAll('.tabbar a').forEach((a) => {
     const on = a.dataset.view === name;
@@ -53,14 +57,25 @@ function render() {
 
 store.load();
 store.onChange(render);
+// Sync status only redraws the screen that shows it, so background syncs never reset an open form.
+store.onSync(() => {
+  updateBanner();
+  if (route().name === 'impostazioni') render();
+});
 initTooltips();
 banner.querySelector('button').onclick = store.clearNotice;
 addEventListener('hashchange', render);
-// Re-render after midnight when the app comes back to the foreground (not on every switch: keeps open forms).
+addEventListener('online', () => store.runSync());
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && todayKey() !== shownDay) render();
+  if (document.hidden) {
+    store.flushSync();                              // upload before iOS suspends the app
+    return;
+  }
+  if (todayKey() !== shownDay) render();            // after midnight (not on every switch: keeps open forms)
+  store.runSync();
 });
 render();
+store.runSync();
 
 navigator.storage?.persist?.();
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {

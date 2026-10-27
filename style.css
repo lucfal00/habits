@@ -110,7 +110,7 @@ button { cursor: pointer; }
 .btn.block { width: 100%; }
 .btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
 
-input[type="text"], input[type="date"], input[type="number"], input:not([type]) {
+input[type="text"], input[type="date"], input[type="number"], input[type="password"], input:not([type]) {
   width: 100%; padding: 11px 12px; font-size: 16px;
   border: 1px solid var(--line); border-radius: 12px;
   background: var(--bg);
@@ -260,4 +260,6 @@ details .rows li { padding-left: 0; padding-right: 0; }
 /* ---- Settings ------------------------------------------------------- */
 .settings p { margin: 0 0 12px; }
 .msg { margin: 12px 0 0; font-weight: 600; }
-.msg.err { color: var(--danger); }
+.msg.err, .err-text { color: var(--danger); }
+.settings .form { gap: 10px; }
+.settings .form small { margin-top: -4px; }

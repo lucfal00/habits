@@ -1,11 +1,20 @@
-// Persistence: the only module that touches localStorage. Emits 'change' after every mutation.
+// Persistence: the only module that touches localStorage.
+// Emits 'change' after data mutations and 'sync' when sync status or the banner changes.
 import { emptyDoc, validateDoc, mergeDocs, activeHabits, todayKey } from './logic.js';
+import { connect, syncOnce } from './sync.js';
 
 const KEY = 'habits.v1';
+const SYNC_KEY = 'habits.sync';
 const bus = new EventTarget();
 let doc = emptyDoc();
 let notice = '';          // banner message
 let readOnly = false;
+
+let syncCfg = null;       // { token, gistId, salt, iterations, key, at }
+let sync = { state: 'off', message: '', at: 0 };   // off | idle | syncing | offline | error
+let syncTimer = 0;
+let syncing = false;
+let syncAgain = false;
 
 export function load() {
   let raw;
@@ -16,6 +25,12 @@ export function load() {
     notice = 'Memoria del browser non disponibile: i dati non verranno salvati.';
     return;
   }
+  try {
+    syncCfg = JSON.parse(localStorage.getItem(SYNC_KEY));
+  } catch {
+    syncCfg = null;
+  }
+  if (syncCfg) sync = { state: 'idle', message: '', at: syncCfg.at || 0 };
   if (!raw) return;
   try {
     const d = JSON.parse(raw);
@@ -31,15 +46,17 @@ export function load() {
 export const getDoc = () => doc;
 export const getNotice = () => notice;
 export const onChange = (fn) => bus.addEventListener('change', fn);
+export const onSync = (fn) => bus.addEventListener('sync', fn);
 
-const emit = () => bus.dispatchEvent(new Event('change'));
+const emit = (type = 'change') => bus.dispatchEvent(new Event(type));
 
 export function clearNotice() {
   notice = '';
-  emit();
+  emit('sync');
 }
 
-function save() {
+/** Write to storage and notify views, without scheduling a sync. */
+function persist() {
   if (!readOnly) {
     try {
       localStorage.setItem(KEY, JSON.stringify(doc));
@@ -48,6 +65,12 @@ function save() {
     }
   }
   emit();
+}
+
+/** User change: persist and upload a few seconds later. */
+function save() {
+  persist();
+  scheduleSync();
 }
 
 const newId = () => 'h_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -89,7 +112,7 @@ export function setEntry(key, id, v) {
 
 export function setSetting(k, v) {
   doc.settings[k] = v;
-  save();
+  persist();                                      // device-local: nothing to upload
 }
 
 // ---- Backup ------------------------------------------------------------
@@ -112,7 +135,7 @@ export async function exportBackup() {
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
   doc.settings.lastBackup = Date.now();
-  save();
+  persist();
   return true;
 }
 
@@ -128,4 +151,94 @@ export async function importBackup(file) {
   doc = r.doc;
   save();
   return { habits: r.habits, entries: r.entries };
+}
+
+// ---- Sync --------------------------------------------------------------
+
+export const getSync = () => ({ connected: !!syncCfg, ...sync });
+
+function setSync(state, message = '', at = sync.at) {
+  sync = { state, message, at };
+  emit('sync');
+}
+
+function storeSyncCfg() {
+  try {
+    if (syncCfg) localStorage.setItem(SYNC_KEY, JSON.stringify(syncCfg));
+    else localStorage.removeItem(SYNC_KEY);
+  } catch { /* config lives in memory for this session */ }
+}
+
+/** Keep anything edited while a network round trip was in flight (newest wins). */
+function adopt(merged) {
+  const r = mergeDocs(doc, merged);
+  if (r.habits + r.entries) {
+    doc = r.doc;
+    persist();
+  }
+}
+
+/** Throws SyncError (wrong password, bad token, offline…). */
+export async function connectSync(token, password) {
+  const r = await connect({ token: token.trim(), password, local: doc });
+  syncCfg = { ...r.cfg, at: Date.now() };
+  storeSyncCfg();
+  adopt(r.doc);
+  setSync('idle', '', syncCfg.at);
+}
+
+export function disconnectSync() {
+  clearTimeout(syncTimer);
+  syncTimer = 0;
+  syncCfg = null;
+  storeSyncCfg();
+  setSync('off');
+}
+
+export function scheduleSync(delay = 3000) {
+  if (!syncCfg) return;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(runSync, delay);
+}
+
+/** Upload a pending change right away (the app is going to the background). */
+export function flushSync() {
+  if (syncTimer) runSync();
+}
+
+export async function runSync() {
+  clearTimeout(syncTimer);
+  syncTimer = 0;
+  if (!syncCfg) return;
+  if (syncing) {
+    syncAgain = true;
+    return;
+  }
+  if (!navigator.onLine) {
+    setSync('offline', 'Offline: sincronizzo appena torna la rete.');
+    return;
+  }
+  syncing = true;
+  setSync('syncing');
+  try {
+    const r = await syncOnce({ cfg: syncCfg, local: doc });
+    if (!syncCfg) return;                         // disconnected meanwhile
+    adopt(r.doc);
+    syncCfg.at = Date.now();
+    storeSyncCfg();
+    setSync('idle', '', syncCfg.at);
+  } catch (e) {
+    if (e.code === 'network') {
+      setSync('offline', e.message);
+    } else {
+      notice = `Sincronizzazione: ${e.message || 'errore imprevisto.'}`;
+      setSync('error', e.message || 'Errore imprevisto.');
+    }
+  } finally {
+    syncing = false;
+    if (syncAgain) {
+      syncAgain = false;
+      scheduleSync(500);
+    }
+  }
 }
