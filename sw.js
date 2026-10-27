@@ -1,12 +1,12 @@
 // Offline support. Pages: network first (a new version shows on the next launch), cache when offline.
 // Other files: answer from cache, refresh the cache in the background.
-const CACHE = 'habits-v4';
+const CACHE = 'habits-v5';
 const FILES = [
   './', './index.html', './style.css', './manifest.webmanifest',
   './js/app.js', './js/store.js', './js/logic.js', './js/charts.js', './js/ui.js', './js/crypto.js', './js/sync.js',
   './js/views/today.js', './js/views/habits.js', './js/views/stats.js', './js/views/settings.js',
-  './icons/habits-v2.svg', './icons/habits-v2-192.png', './icons/habits-v2-512.png',
-  './icons/habits-v2-maskable-512.png', './icons/habits-v2-apple-180.png',
+  './icons/habits-v3.svg', './icons/habits-v3-192.png', './icons/habits-v3-512.png',
+  './icons/habits-v3-maskable-512.png', './icons/habits-v3-apple-180.png',
 ];
 const PAGE_TIMEOUT_MS = 3000;
 
