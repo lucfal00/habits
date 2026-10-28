@@ -1,9 +1,11 @@
-// "Oggi": log the habits of the selected day.
+// "Oggi": log the habits of the selected day, skip / pause handling, mood card.
 import {
-  activeHabits, isScheduled, valueOf, fraction, weekCount, dayPercent, currentStreak, addDays, stepOf, nudge,
+  activeHabits, isScheduled, isPaused, isSkipped, valueOf, fraction, weekCount, dayPercent, currentStreak,
+  addDays, stepOf, nudge, vacationOn, moodOf, MOOD_LABELS,
 } from '../logic.js';
-import { setEntry, exportBackup, getSync } from '../store.js';
+import { setEntry, setSkip, endVacation, exportBackup, getSync } from '../store.js';
 import { ring } from '../charts.js';
+import { paintMoods } from '../mood.js';
 import { esc, safeColor, fmtDay, fmtNum, pct, parseNum } from '../ui.js';
 
 const WEEK_MS = 7 * 864e5;
@@ -11,9 +13,16 @@ let day = null;
 let seenToday = null;
 
 function card(doc, h, today) {
+  const c = safeColor(h.color);
+  if (isSkipped(doc, h, day)) {
+    return `<li class="habit card skipped" style="--c:${c}" data-id="${esc(h.id)}">
+      <div class="ring-wrap">${ring(0, c, 46, 5)}<span class="emoji">${esc(h.emoji || '•')}</span></div>
+      <div class="info"><b>${esc(h.name)}</b><small>⏭ Saltata · la serie è al sicuro</small></div>
+      <button class="btn small" data-act="unskip">Ripristina</button>
+    </li>`;
+  }
   const v = valueOf(doc, day, h.id);
   const f = fraction(h, v);
-  const c = safeColor(h.color);
   const done = f >= 1;
   const sub = [];
   if (h.type === 'quantity') sub.push(`${fmtNum(v)} / ${fmtNum(h.target)} ${esc(h.unit)}`);
@@ -27,11 +36,23 @@ function card(doc, h, today) {
         <input type="text" inputmode="decimal" value="${fmtNum(v)}" data-act="set" aria-label="Valore ${esc(h.name)}">
         <button data-act="inc" aria-label="Aumenta ${esc(h.name)}">+</button>
       </div>`;
+  const skip = done ? '' : `<button class="skip" data-act="skip" aria-label="Salta ${esc(h.name)} oggi" title="Salta oggi">⏭</button>`;
   return `<li class="habit card${done ? ' done' : ''}" style="--c:${c}" data-id="${esc(h.id)}">
     <div class="ring-wrap">${ring(f, c, 46, 5)}<span class="emoji">${esc(h.emoji || '•')}</span></div>
     <div class="info"><b>${esc(h.name)}</b><small>${sub.join(' · ') || '&nbsp;'}</small></div>
-    ${control}
+    <div class="controls">${skip}${control}</div>
   </li>`;
+}
+
+function moodCard(doc) {
+  const m = moodOf(doc, day);
+  const sub = m
+    ? esc([MOOD_LABELS[m.mood - 1], ...(m.feelings || []).slice(0, 2)].join(' · '))
+    : 'Tocca per registrare com’è andata';
+  return `<button class="card mood-card" data-act="mood">
+    <canvas data-mood="${m ? m.mood : 0}" width="52" height="52" aria-hidden="true"></canvas>
+    <span class="grow"><b>Umore</b><small>${sub}</small></span><span class="chev" aria-hidden="true">›</span>
+  </button>`;
 }
 
 export function render(el, { doc, today, refresh }) {
@@ -40,11 +61,14 @@ export function render(el, { doc, today, refresh }) {
     seenToday = today;
   }
   const all = activeHabits(doc);
-  const list = all.filter((h) => (h.freq.kind === 'weekly' ? h.start <= day : isScheduled(h, day)));
-  const daily = list.filter((h) => h.freq.kind !== 'weekly');
+  const list = all.filter((h) => (h.freq.kind === 'weekly' ? h.start <= day && !isPaused(h, day) : isScheduled(h, day)));
+  const paused = all.filter((h) => h.start <= day && isPaused(h, day)).length;
+  const due = list.filter((h) => !isSkipped(doc, h, day));
+  const daily = due.filter((h) => h.freq.kind !== 'weekly');
   const doneCount = daily.filter((h) => fraction(h, valueOf(doc, day, h.id)) >= 1).length;
   const p = dayPercent(doc, day);
   const title = day === today ? 'Oggi' : day === addDays(today, -1) ? 'Ieri' : fmtDay(day).split(' ')[0];
+  const vacation = vacationOn(doc, day);
   // With sync connected the data already lives on the Gist: no reminder.
   const lastBackup = doc.settings.lastBackup || 0;
   const backupDue = all.length && !getSync().connected && Date.now() - lastBackup > WEEK_MS;
@@ -54,7 +78,7 @@ export function render(el, { doc, today, refresh }) {
     body = `<div class="card empty"><p>Nessuna abitudine ancora.</p>
       <a class="btn primary" href="#abitudini/nuova">+ Crea la prima abitudine</a></div>`;
   } else if (!list.length) {
-    body = '<div class="card empty"><p class="muted">Nessuna abitudine prevista per questo giorno.</p></div>';
+    body = `<div class="card empty"><p class="muted">${paused ? 'Tutte le abitudini di questo giorno sono in pausa.' : 'Nessuna abitudine prevista per questo giorno.'}</p></div>`;
   } else {
     body = `<section class="card summary">
         <div class="ring-wrap">${ring(p ?? 0, 'var(--accent)', 84, 9)}<span class="pct">${pct(p)}</span></div>
@@ -63,6 +87,8 @@ export function render(el, { doc, today, refresh }) {
       </section>
       <ul class="habit-list">${list.map((h) => card(doc, h, today)).join('')}</ul>`;
   }
+  const pausedNote = paused && list.length && !vacation
+    ? `<p class="muted paused-note">⏸ ${paused === 1 ? '1 abitudine in pausa' : `${paused} abitudini in pausa`}</p>` : '';
 
   el.innerHTML = `
     <header class="top">
@@ -70,12 +96,17 @@ export function render(el, { doc, today, refresh }) {
       <div class="grow"><h1>${title}</h1><small>${fmtDay(day)}</small></div>
       <button class="icon-btn" data-act="next" aria-label="Giorno successivo" ${day >= today ? 'disabled' : ''}>›</button>
     </header>
+    ${vacation ? `<div class="card notice vacation"><p>🏖️ In vacanza fino a ${fmtDay(vacation).toLowerCase()}: le serie sono al sicuro.</p>
+      ${day === today ? '<button class="btn" data-act="endvac">Termina</button>' : ''}</div>` : ''}
     ${backupDue && lastBackup ? `<div class="card notice"><p>Non fai un backup da più di 7 giorni.</p>
       <button class="btn" data-act="backup">Esporta</button></div>` : ''}
     ${backupDue && !lastBackup ? `<div class="card notice"><p>I tuoi dati sono solo su questo dispositivo:
       collega la sincronizzazione o esporta un backup.</p>
       <a class="btn" href="#impostazioni">Impostazioni</a></div>` : ''}
-    ${body}`;
+    ${moodCard(doc)}
+    ${body}
+    ${pausedNote}`;
+  paintMoods(el);
 
   el.onclick = async (e) => {
     const b = e.target.closest('[data-act]');
@@ -85,6 +116,14 @@ export function render(el, { doc, today, refresh }) {
       day = addDays(day, act === 'prev' ? -1 : 1);
       if (day > today) day = today;
       refresh();
+      return;
+    }
+    if (act === 'mood') {
+      location.hash = `#umore/${day}`;
+      return;
+    }
+    if (act === 'endvac') {
+      endVacation(today);
       return;
     }
     if (act === 'backup') {
@@ -98,6 +137,8 @@ export function render(el, { doc, today, refresh }) {
     if (act === 'toggle') setEntry(day, id, v >= 1 ? 0 : 1);
     if (act === 'inc') setEntry(day, id, nudge(v, stepOf(h), 1));
     if (act === 'dec') setEntry(day, id, nudge(v, stepOf(h), -1));
+    if (act === 'skip') setSkip(day, id, true);
+    if (act === 'unskip') setSkip(day, id, false);
   };
 
   el.onchange = (e) => {

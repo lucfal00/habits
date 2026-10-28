@@ -47,7 +47,7 @@ function* days(from, to) {
 // ---- Document ----------------------------------------------------------
 
 export function emptyDoc() {
-  return { version: 1, habits: [], entries: {}, settings: { theme: 'auto', lastBackup: 0 } };
+  return { version: 1, habits: [], entries: {}, journal: {}, settings: { theme: 'auto', lastBackup: 0 } };
 }
 
 export const isActive = (h) => !h.archived && !h.deleted;
@@ -74,13 +74,25 @@ const isWeekly = (h) => h.freq.kind === 'weekly';
 
 const doneOn = (doc, h, key) => isDone(h, valueOf(doc, key, h.id));
 
-/** Weekly habits are never "scheduled" on a day: they are counted per week. */
+/** Inside one of the habit's pause periods (dates inclusive). */
+export const isPaused = (h, key) => !!h.pauses?.some((p) => key >= p.from && key <= p.to);
+
+/** "Salta oggi": the entry carries s = 1. */
+export const isSkipped = (doc, h, key) => doc.entries[key]?.[h.id]?.s === 1;
+
+/** Weekly habits are never "scheduled" on a day: they are counted per week. Paused days are not scheduled. */
 export function isScheduled(h, key) {
-  if (key < h.start) return false;
+  if (key < h.start || isPaused(h, key)) return false;
   if (h.freq.kind === 'daily') return true;
   if (h.freq.kind === 'days') return h.freq.days.includes(weekday(key));
   return false;
 }
+
+/** Scheduled and not skipped: the day counts for %, streaks and the calendar. */
+export const isDue = (doc, h, key) => isScheduled(h, key) && !isSkipped(doc, h, key);
+
+/** A day that counts for a weekly habit (started, not paused, not skipped). */
+const activeDay = (doc, h, key) => key >= h.start && !isPaused(h, key) && !isSkipped(doc, h, key);
 
 /** Days done in the Monday–Sunday week containing key. */
 export function weekCount(doc, h, key) {
@@ -93,38 +105,46 @@ export function weekCount(doc, h, key) {
   return n;
 }
 
-/** Mean fraction of active habits scheduled on key; null if none. */
+/** Mean fraction of active habits due on key; null if none. */
 export function dayPercent(doc, key) {
-  const hs = activeHabits(doc).filter((h) => isScheduled(h, key));
+  const hs = activeHabits(doc).filter((h) => isDue(doc, h, key));
   if (!hs.length) return null;
   return hs.reduce((s, h) => s + fraction(h, valueOf(doc, key, h.id)), 0) / hs.length;
 }
 
-/** Single-habit heatmap value; null where the habit does not apply. */
+/** Single-habit heatmap value; null where the habit does not apply (paused, skipped, not scheduled). */
 export function habitDayFraction(doc, h, key) {
-  if (key < h.start || (!isWeekly(h) && !isScheduled(h, key))) return null;
+  if (!activeDay(doc, h, key) || (!isWeekly(h) && !isScheduled(h, key))) return null;
   return fraction(h, valueOf(doc, key, h.id));
 }
 
 // ---- Streaks -----------------------------------------------------------
 
-const weekMet = (doc, h, ws) => weekCount(doc, h, ws) >= h.freq.times;
+/** Weekly target scaled to the active days of the week: met | missed | ignored (no active day). */
+function weekStatus(doc, h, ws) {
+  let active = 0;
+  for (let i = 0; i < 7; i++) if (activeDay(doc, h, addDays(ws, i))) active++;
+  if (!active) return 'ignored';
+  return weekCount(doc, h, ws) >= Math.ceil((h.freq.times * active) / 7) ? 'met' : 'missed';
+}
 
 export function currentStreak(doc, h, today) {
   let n = 0;
   if (isWeekly(h)) {
     let w = weekStart(today);
-    if (weekMet(doc, h, w)) n++;                    // current week pending otherwise
+    if (weekStatus(doc, h, w) === 'met') n++;       // current week pending otherwise
     const first = weekStart(h.start);
     for (w = addDays(w, -7); w >= first; w = addDays(w, -7)) {
-      if (!weekMet(doc, h, w)) break;
+      const s = weekStatus(doc, h, w);
+      if (s === 'ignored') continue;
+      if (s === 'missed') break;
       n++;
     }
     return n;
   }
   let k = doneOn(doc, h, today) ? today : addDays(today, -1);   // today pending
   for (; k >= h.start; k = addDays(k, -1)) {
-    if (!isScheduled(h, k)) continue;
+    if (!isDue(doc, h, k)) continue;
     if (!doneOn(doc, h, k)) break;
     n++;
   }
@@ -136,13 +156,14 @@ export function bestStreak(doc, h, today) {
   let run = 0;
   if (isWeekly(h)) {
     for (let w = weekStart(h.start); w <= today; w = addDays(w, 7)) {
-      if (weekMet(doc, h, w)) best = Math.max(best, ++run);
-      else run = 0;
+      const s = weekStatus(doc, h, w);
+      if (s === 'met') best = Math.max(best, ++run);
+      else if (s === 'missed') run = 0;
     }
     return best;
   }
   for (const k of days(h.start, today)) {
-    if (!isScheduled(h, k)) continue;
+    if (!isDue(doc, h, k)) continue;
     if (doneOn(doc, h, k)) best = Math.max(best, ++run);
     else run = 0;
   }
@@ -163,6 +184,7 @@ export function periodPercent(doc, habits, from, to, today) {
       let n = 0;
       let done = 0;
       for (const k of days(start, end)) {
+        if (!activeDay(doc, h, k)) continue;
         n++;
         if (doneOn(doc, h, k)) done++;
       }
@@ -171,7 +193,7 @@ export function periodPercent(doc, habits, from, to, today) {
       got += Math.min(done, e);
     } else {
       for (const k of days(start, end)) {
-        if (!isScheduled(h, k)) continue;
+        if (!isDue(doc, h, k)) continue;
         expected++;
         got += fraction(h, valueOf(doc, k, h.id));
       }
@@ -180,14 +202,66 @@ export function periodPercent(doc, habits, from, to, today) {
   return expected ? got / expected : null;
 }
 
+/** End date of the vacation covering key (latest among active habits), or null. */
+export function vacationOn(doc, key) {
+  let to = null;
+  for (const h of activeHabits(doc)) {
+    for (const p of h.pauses || []) if (p.vac && p.from <= key && p.to >= key && (!to || p.to > to)) to = p.to;
+  }
+  return to;
+}
+
+// ---- Mood --------------------------------------------------------------
+
+export const MOOD_LABELS = ['Molto spiacevole', 'Spiacevole', 'Un po’ spiacevole', 'Neutro',
+  'Un po’ piacevole', 'Piacevole', 'Molto piacevole'];
+
+export const moodBand = (m) => (m <= 3 ? 'spiacevole' : m === 4 ? 'neutro' : 'piacevole');
+
+/** The day's mood record, or null if none / cleared. */
+export const moodOf = (doc, key) => (doc.journal?.[key]?.mood > 0 ? doc.journal[key] : null);
+
+/** Over [from, to]: recorded days, mean completion per band, most frequent feelings and factors. */
+export function moodStats(doc, from, to) {
+  const sums = { spiacevole: [0, 0], neutro: [0, 0], piacevole: [0, 0] };
+  const feelings = new Map();
+  const factors = new Map();
+  let n = 0;
+  for (const k of days(from, to)) {
+    const j = moodOf(doc, k);
+    if (!j) continue;
+    n++;
+    const p = dayPercent(doc, k);
+    if (p != null) {
+      sums[moodBand(j.mood)][0] += p;
+      sums[moodBand(j.mood)][1]++;
+    }
+    for (const f of j.feelings || []) feelings.set(f, (feelings.get(f) || 0) + 1);
+    for (const f of j.factors || []) factors.set(f, (factors.get(f) || 0) + 1);
+  }
+  const top = (m) => [...m].sort((a, b) => b[1] - a[1]);
+  const byBand = Object.fromEntries(Object.entries(sums).map(([b, [s, c]]) => [b, c ? s / c : null]));
+  return { days: n, byBand, feelings: top(feelings), factors: top(factors) };
+}
+
 // ---- Backup ------------------------------------------------------------
 
 const KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+const validPause = (p) => p && KEY_RE.test(p.from) && KEY_RE.test(p.to) && p.from <= p.to;
+
+const strings = (a) => a === undefined || (Array.isArray(a) && a.every((s) => typeof s === 'string'));
+
+function validJournalDay(j) {
+  return !!j && typeof j === 'object' && Number.isInteger(j.mood) && j.mood >= 0 && j.mood <= 7
+    && strings(j.feelings) && strings(j.factors) && (j.note === undefined || typeof j.note === 'string');
+}
 
 function validHabit(h) {
   if (!h || typeof h.id !== 'string' || typeof h.name !== 'string') return false;
   if (h.type !== 'check' && !(h.type === 'quantity' && h.target > 0)) return false;
   if (h.step !== undefined && !(h.step > 0)) return false;
+  if (h.pauses !== undefined && !(Array.isArray(h.pauses) && h.pauses.every(validPause))) return false;
   if (typeof h.start !== 'string' || !KEY_RE.test(h.start)) return false;
   const f = h.freq;
   if (!f) return false;
@@ -203,6 +277,8 @@ export function validateDoc(d) {
   if (!isObj(d) || d.version !== 1) return false;
   if (!Array.isArray(d.habits) || !d.habits.every(validHabit)) return false;
   if (!isObj(d.entries)) return false;
+  if (d.journal !== undefined && !(isObj(d.journal)
+    && Object.entries(d.journal).every(([k, j]) => KEY_RE.test(k) && validJournalDay(j)))) return false;
   return Object.entries(d.entries).every(([k, row]) => KEY_RE.test(k) && isObj(row)
     && Object.values(row).every((e) => isObj(e) && Number.isFinite(e.v)));
 }
@@ -232,6 +308,14 @@ export function mergeDocs(local, incoming) {
       }
     }
   }
+  let journal = 0;
+  doc.journal ??= {};
+  for (const [day, j] of Object.entries(incoming.journal || {})) {
+    if (!doc.journal[day] || (j.t ?? 0) > (doc.journal[day].t ?? 0)) {
+      doc.journal[day] = j;
+      journal++;
+    }
+  }
   doc.settings.lastBackup = Math.max(doc.settings.lastBackup || 0, incoming.settings?.lastBackup || 0);
-  return { doc, habits, entries };
+  return { doc, habits, entries, journal };
 }

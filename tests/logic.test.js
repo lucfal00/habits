@@ -136,6 +136,70 @@ test('mergeDocs: newest wins', () => {
   assert.equal(local.habits[0].name, 'A'); // input not mutated
 });
 
+test('pauses: paused days are not scheduled and do not break streaks', () => {
+  const h = habit({ start: '2026-10-20', pauses: [{ from: '2026-10-23', to: '2026-10-25' }] });
+  assert.equal(L.isPaused(h, '2026-10-24'), true);
+  assert.equal(L.isScheduled(h, '2026-10-24'), false);
+  const d = docWith([h], { a: mark(['2026-10-21', '2026-10-22', '2026-10-26']) });
+  assert.equal(L.currentStreak(d, h, '2026-10-27'), 3);
+  assert.equal(L.periodPercent(d, [h], '2026-10-20', '2026-10-26', '2026-10-27'), 3 / 4);
+});
+
+test('skip: a skipped day is not due', () => {
+  const h = habit({ start: '2026-10-20' });
+  const d = docWith([h], { a: mark(['2026-10-24', '2026-10-26']) });
+  d.entries['2026-10-25'] = { a: { v: 0, s: 1, t: 2 } };
+  assert.equal(L.isSkipped(d, h, '2026-10-25'), true);
+  assert.equal(L.currentStreak(d, h, '2026-10-27'), 2);
+  assert.equal(L.dayPercent(d, '2026-10-25'), null);
+  assert.equal(L.habitDayFraction(d, h, '2026-10-25'), null);
+});
+
+test('weekly habits with pauses: target prorated, fully paused week ignored', () => {
+  const h = habit({
+    freq: { kind: 'weekly', times: 3 }, start: '2026-10-05',
+    pauses: [{ from: '2026-10-12', to: '2026-10-18' }, { from: '2026-10-19', to: '2026-10-23' }],
+  });
+  const d = docWith([h], { a: mark(['2026-10-05', '2026-10-07', '2026-10-09', '2026-10-24']) });
+  assert.equal(L.currentStreak(d, h, '2026-10-27'), 2);
+  assert.equal(L.bestStreak(d, h, '2026-10-27'), 2);
+});
+
+test('journal: merge newest wins, validation of journal and pauses', () => {
+  const a = L.emptyDoc();
+  a.journal = { '2026-10-27': { mood: 6, feelings: ['Felicità'], factors: [], note: 'ok', t: 5 } };
+  const b = L.emptyDoc();
+  b.journal = {
+    '2026-10-27': { mood: 2, feelings: [], factors: ['Lavoro'], note: '', t: 9 },
+    '2026-10-26': { mood: 4, feelings: [], factors: [], note: '', t: 1 },
+  };
+  const r = L.mergeDocs(a, b);
+  assert.equal(r.journal, 2);
+  assert.equal(r.doc.journal['2026-10-27'].mood, 2);
+  assert.equal(L.validateDoc(r.doc), true);
+  assert.equal(L.validateDoc({ ...L.emptyDoc(), journal: { '2026-10-27': { mood: 9, t: 1 } } }), false);
+  assert.equal(L.validateDoc(docWith([habit({ pauses: [{ from: '2026-10-25', to: '2026-10-20' }] })])), false);
+  assert.equal(L.validateDoc(docWith([habit({ pauses: [{ from: '2026-10-20', to: '2026-10-25', vac: true }] })])), true);
+});
+
+test('moodBand and moodStats', () => {
+  assert.equal(L.moodBand(2), 'spiacevole');
+  assert.equal(L.moodBand(4), 'neutro');
+  assert.equal(L.moodBand(6), 'piacevole');
+  const h = habit({ start: '2026-10-20' });
+  const d = docWith([h], { a: mark(['2026-10-26']) });
+  d.journal = {
+    '2026-10-26': { mood: 6, feelings: ['Felicità'], factors: ['Sport'], note: '', t: 1 },
+    '2026-10-25': { mood: 2, feelings: ['Stanchezza', 'Felicità'], factors: ['Lavoro'], note: '', t: 1 },
+  };
+  const s = L.moodStats(d, '2026-10-20', '2026-10-27');
+  assert.equal(s.days, 2);
+  assert.equal(s.byBand.piacevole, 1);
+  assert.equal(s.byBand.spiacevole, 0);
+  assert.equal(s.byBand.neutro, null);
+  assert.deepEqual(s.feelings[0], ['Felicità', 2]);
+});
+
 test('stepOf and nudge: custom +/- step for quantity habits', () => {
   assert.equal(L.stepOf(habit()), 1);
   assert.equal(L.stepOf(habit({ type: 'quantity', target: 2 })), 1);

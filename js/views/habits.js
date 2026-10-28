@@ -1,44 +1,83 @@
 // "Abitudini": list, reorder, create/edit/archive/delete.
-import { activeHabits, stepOf } from '../logic.js';
-import { createHabit, updateHabit, moveHabit } from '../store.js';
-import { esc, safeColor, freqLabel, fmtNum, parseNum, COLORS, DAY_LETTERS, DAY_SHORT } from '../ui.js';
+import { activeHabits, stepOf, addDays } from '../logic.js';
+import { createHabit, updateHabit, moveHabit, addPause, removePause } from '../store.js';
+import { esc, safeColor, freqLabel, fmtNum, fmtShort, parseNum, COLORS, DAY_LETTERS, DAY_SHORT } from '../ui.js';
 
 const EMOJIS = ['💧', '🏃', '📚', '🧘', '💪', '🥗', '😴', '✍️', '🎸', '🚭', '🧹', '💊'];
 const KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 const typeLabel = (h) => (h.type === 'quantity' ? `${fmtNum(h.target)} ${esc(h.unit)}` : 'Sì / no');
 
-function row(h, i, n) {
+/** End date of the pause covering today, if any. */
+const pausedUntil = (h, today) => (h.pauses || []).filter((p) => p.from <= today && p.to >= today)
+  .reduce((max, p) => (!max || p.to > max ? p.to : max), null);
+
+function row(h, i, n, today) {
   const order = n
     ? `<span class="order">
         <button data-act="up" aria-label="Sposta su" ${i === 0 ? 'disabled' : ''}>↑</button>
         <button data-act="down" aria-label="Sposta giù" ${i === n - 1 ? 'disabled' : ''}>↓</button>
       </span>`
     : '';
+  const until = pausedUntil(h, today);
   return `<li data-id="${esc(h.id)}">
     <a class="row" href="#abitudini/${encodeURIComponent(h.id)}">
       <span class="badge" style="--c:${safeColor(h.color)}">${esc(h.emoji || '•')}</span>
-      <span><b>${esc(h.name)}</b><small>${esc(freqLabel(h))} · ${typeLabel(h)}</small></span>
+      <span><b>${esc(h.name)}</b><small>${until ? `⏸ In pausa fino al ${fmtShort(until)}` : `${esc(freqLabel(h))} · ${typeLabel(h)}`}</small></span>
     </a>${order}
   </li>`;
 }
 
-function renderList(el, doc) {
+function renderList(el, doc, today) {
   const active = activeHabits(doc);
   const archived = doc.habits.filter((h) => h.archived && !h.deleted);
   el.innerHTML = `
     <header class="top"><div class="grow"><h1>Abitudini</h1></div>
       <a class="btn primary" href="#abitudini/nuova">+ Nuova</a></header>
     ${active.length
-    ? `<ul class="card list rows">${active.map((h, i) => row(h, i, active.length)).join('')}</ul>`
+    ? `<ul class="card list rows">${active.map((h, i) => row(h, i, active.length, today)).join('')}</ul>`
     : '<div class="card empty"><p class="muted">Nessuna abitudine attiva.</p></div>'}
     ${archived.length ? `<details class="card"><summary>Archiviate (${archived.length})</summary>
-      <ul class="rows">${archived.map((h) => row(h, 0, 0)).join('')}</ul></details>` : ''}`;
+      <ul class="rows">${archived.map((h) => row(h, 0, 0, today)).join('')}</ul></details>` : ''}`;
 
   el.onclick = (e) => {
     const b = e.target.closest('button[data-act]');
     if (!b) return;
     moveHabit(b.closest('[data-id]').dataset.id, b.dataset.act === 'up' ? -1 : 1);
+  };
+}
+
+function pauseCard(h, today) {
+  const items = (h.pauses || []).map((p, i) => [p, i]).filter(([p]) => p.to >= today);
+  return `<section class="card pause-card"><h2>⏸ Pausa</h2>
+    <p class="muted">Nei giorni in pausa l’abitudine non conta: niente percentuali e la serie resta intatta.</p>
+    ${items.length ? `<ul class="pause-list">${items.map(([p, i]) => `<li><span>dal ${fmtShort(p.from)} al ${fmtShort(p.to)}${p.vac ? ' · 🏖️ vacanza' : ''}</span>
+      <button type="button" class="icon-btn small" data-act="unpause" data-index="${i}" aria-label="Rimuovi pausa">✕</button></li>`).join('')}</ul>` : ''}
+    <div class="two">
+      <label class="field">Dal<input type="date" name="pfrom" value="${today}"></label>
+      <label class="field">Al<input type="date" name="pto" value="${addDays(today, 6)}"></label>
+    </div>
+    <p class="error" role="alert" hidden></p>
+    <button type="button" class="btn block" data-act="pause">Metti in pausa</button>
+  </section>`;
+}
+
+function bindPauseCard(card, h, today) {
+  card.onclick = (e) => {
+    const b = e.target.closest('[data-act]');
+    if (!b) return;
+    if (b.dataset.act === 'unpause') removePause(h.id, Number(b.dataset.index));
+    if (b.dataset.act === 'pause') {
+      const from = card.querySelector('[name=pfrom]').value;
+      const to = card.querySelector('[name=pto]').value;
+      const err = card.querySelector('.error');
+      if (!KEY_RE.test(from) || !KEY_RE.test(to) || from > to || to < today) {
+        err.textContent = 'Scegli un periodo valido (la fine non può essere prima dell’inizio né nel passato).';
+        err.hidden = false;
+        return;
+      }
+      addPause(h.id, from, to);
+    }
   };
 }
 
@@ -85,7 +124,9 @@ function renderForm(el, doc, h, today) {
       ${h ? `<div class="danger-zone">
         <button class="btn" type="button" data-act="archive">${h.archived ? 'Ripristina' : 'Archivia'}</button>
         <button class="btn danger" type="button" data-act="delete">Elimina</button></div>` : ''}
-    </form>`;
+    </form>
+    ${h ? pauseCard(h, today) : ''}`;
+  if (h) bindPauseCard(el.querySelector('.pause-card'), h, today);
 
   const form = el.querySelector('form');
   const error = form.querySelector('.error');
@@ -152,7 +193,7 @@ function renderForm(el, doc, h, today) {
 
 export function render(el, { doc, param, today }) {
   if (!param) {
-    renderList(el, doc);
+    renderList(el, doc, today);
     return;
   }
   const h = param === 'nuova' ? null : doc.habits.find((x) => x.id === param && !x.deleted);

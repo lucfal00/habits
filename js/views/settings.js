@@ -1,8 +1,30 @@
 // "Impostazioni": theme, sync and backup.
 import {
-  setSetting, exportBackup, importBackup, getSync, connectSync, disconnectSync, runSync,
+  setSetting, exportBackup, importBackup, getSync, connectSync, disconnectSync, runSync, startVacation, endVacation,
 } from '../store.js';
-import { esc } from '../ui.js';
+import { vacationOn, addDays } from '../logic.js';
+import { esc, fmtDay } from '../ui.js';
+
+let vacMsg = null;
+
+function vacationSection(doc, today) {
+  const until = vacationOn(doc, today);
+  if (until) {
+    return `<section class="card settings"><h2>🏖️ Vacanza</h2>
+      <p>In vacanza fino a <b>${fmtDay(until).toLowerCase()}</b>. Le abitudini sono in pausa e le serie sono al sicuro.</p>
+      <button class="btn" data-act="vac-end">Termina la vacanza oggi</button>
+    </section>`;
+  }
+  return `<section class="card settings"><h2>🏖️ Vacanza</h2>
+    <p class="muted">Mette in pausa tutte le abitudini per un periodo: niente percentuali e nessuna serie interrotta.</p>
+    <div class="two">
+      <label class="field">Dal<input type="date" name="vfrom" value="${today}"></label>
+      <label class="field">Al<input type="date" name="vto" value="${addDays(today, 6)}"></label>
+    </div>
+    ${vacMsg ? `<p class="msg err" role="alert">${esc(vacMsg)}</p>` : ''}
+    <button class="btn" data-act="vac-start">Inizia vacanza</button>
+  </section>`;
+}
 
 const TOKEN_URL = 'https://github.com/settings/tokens/new?scopes=gist&description=Habits%20sync';
 
@@ -50,7 +72,7 @@ function syncSection() {
   </section>`;
 }
 
-export function render(el, { doc, refresh }) {
+export function render(el, { doc, today, refresh }) {
   const theme = doc.settings.theme;
   const opt = (v, label) => `<label class="pick"><input type="radio" name="theme" value="${v}" ${theme === v ? 'checked' : ''}><span>${label}</span></label>`;
   const last = doc.settings.lastBackup;
@@ -60,6 +82,7 @@ export function render(el, { doc, refresh }) {
     <section class="card settings"><h2>Tema</h2>
       <div class="seg">${opt('auto', 'Automatico')}${opt('light', 'Chiaro')}${opt('dark', 'Scuro')}</div>
     </section>
+    ${vacationSection(doc, today)}
     ${syncSection()}
     <section class="card settings"><h2>Backup</h2>
       <p>Ultimo backup: <b>${last ? fmtDate(last) : 'mai'}</b></p>
@@ -105,6 +128,15 @@ export function render(el, { doc, refresh }) {
   el.onclick = async (e) => {
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (act === 'import') input.click();
+    if (act === 'vac-start') {
+      const from = el.querySelector('[name=vfrom]').value;
+      const to = el.querySelector('[name=vto]').value;
+      const ok = /^\d{4}-\d{2}-\d{2}$/.test(from) && /^\d{4}-\d{2}-\d{2}$/.test(to) && from <= to && to >= today;
+      vacMsg = ok ? null : 'Scegli un periodo valido (la fine non può essere prima dell’inizio né nel passato).';
+      if (ok) startVacation(from, to);
+      else refresh();
+    }
+    if (act === 'vac-end') endVacation(today);
     if (act === 'sync-now') {
       syncMsg = null;
       runSync();

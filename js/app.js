@@ -6,8 +6,10 @@ import * as today from './views/today.js';
 import * as habits from './views/habits.js';
 import * as stats from './views/stats.js';
 import * as settings from './views/settings.js';
+import * as mood from './views/mood.js';
 
-const views = { oggi: today, abitudini: habits, stats, impostazioni: settings };
+const views = { oggi: today, abitudini: habits, stats, impostazioni: settings, umore: mood };
+const TAB_OF = { umore: 'oggi' };                    // screens without their own tab
 const main = document.getElementById('view');
 const banner = document.getElementById('banner');
 let shown = '';
@@ -37,7 +39,7 @@ function render() {
   updateBanner();
 
   document.querySelectorAll('.tabbar a').forEach((a) => {
-    const on = a.dataset.view === name;
+    const on = a.dataset.view === (TAB_OF[name] || name);
     a.classList.toggle('active', on);
     if (on) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');

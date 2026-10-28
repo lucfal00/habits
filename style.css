@@ -263,3 +263,56 @@ details .rows li { padding-left: 0; padding-right: 0; }
 .msg.err, .err-text { color: var(--danger); }
 .settings .form { gap: 10px; }
 .settings .form small { margin-top: -4px; }
+
+/* ---- Skip / pause / vacation ------------------------------------------ */
+.controls { display: flex; align-items: center; gap: 6px; }
+.skip {
+  width: 30px; height: 30px; border-radius: 50%; flex: none;
+  border: 1px solid var(--line); background: transparent; color: var(--muted); font-size: .8rem;
+}
+.habit.skipped { opacity: .6; }
+.habit.skipped .ring-wrap { filter: grayscale(1); }
+.btn.small { padding: 6px 12px; font-size: .85rem; }
+.icon-btn.small { width: 30px; height: 30px; font-size: .9rem; }
+.paused-note { text-align: center; font-size: .85rem; margin: 4px 0 12px; }
+.pause-list { list-style: none; margin: 0 0 12px; padding: 0; }
+.pause-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.pause-card .two, .settings .two { margin-bottom: 12px; }
+
+/* ---- Mood --------------------------------------------------------------- */
+.mood-card {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+  font: inherit; color: inherit; cursor: pointer; padding: 10px 14px;
+}
+.mood-card canvas { width: 52px; height: 52px; flex: none; }
+.mood-card b { display: block; }
+.mood-card .chev { color: var(--muted); font-size: 1.4rem; }
+.mood-head { margin: 0 4px 6px; }
+.mood-head small { display: block; }
+.mood-hero { display: grid; justify-items: center; gap: 10px; margin: 8px 0 18px; }
+.mood-big { width: min(250px, 68vw); aspect-ratio: 1; }
+.mood-label { font-size: 1.35rem; font-weight: 700; letter-spacing: -.01em; min-height: 1.6em; }
+.mood-slider { width: 100%; max-width: 420px; appearance: none; -webkit-appearance: none; height: 12px; border-radius: 6px;
+  background: linear-gradient(90deg, #5b3fd9, #4f6fe8, #3fb7cf, #45c98a, #f6c34d, #ff6f3c); outline-offset: 6px; }
+.mood-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 30px; height: 30px; border-radius: 50%;
+  background: #fff; border: 0; box-shadow: 0 2px 8px rgba(0, 0, 0, .35); cursor: grab; }
+.mood-slider::-moz-range-thumb { width: 30px; height: 30px; border-radius: 50%; background: #fff; border: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .35); cursor: grab; }
+.mood-scale { width: 100%; max-width: 420px; display: flex; justify-content: space-between; font-size: .78rem; color: var(--muted); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  padding: 7px 13px; border-radius: 999px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--text); font-size: .9rem; cursor: pointer;
+}
+.chip.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+.chip.static { cursor: default; }
+.chip small { color: inherit; opacity: .7; }
+.mood-note { width: 100%; padding: 11px 12px; font: inherit; font-size: 16px; color: var(--text);
+  border: 1px solid var(--line); border-radius: 12px; background: var(--bg); resize: vertical; }
+.mood-actions { margin: 4px 0 16px; }
+.mood-actions .btn { flex: 1; }
+.mood-strip { display: grid; grid-template-columns: repeat(15, minmax(0, 1fr)); gap: 3px; align-items: center; justify-items: center; margin-bottom: 12px; }
+.mood-strip canvas { width: 100%; max-width: 22px; aspect-ratio: 1; }
+.mood-empty { width: 6px; height: 6px; border-radius: 50%; background: var(--track); }
+.mood-compare { margin: 0 0 10px; }
+.mood-sub { margin: 10px 0 6px; font-size: .82rem; }

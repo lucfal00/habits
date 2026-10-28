@@ -1,10 +1,40 @@
 // "Statistiche": global trend + heatmap, per-habit detail.
 import {
   activeHabits, addDays, addMonths, monthEnd, weekStart, fromKey,
-  dayPercent, habitDayFraction, periodPercent, currentStreak, bestStreak, valueOf,
+  dayPercent, habitDayFraction, periodPercent, currentStreak, bestStreak, valueOf, moodOf, moodStats, MOOD_LABELS,
 } from '../logic.js';
 import { heatmap, lineChart, barChart } from '../charts.js';
+import { paintMoods } from '../mood.js';
 import { esc, safeColor, fmtShort, fmtNum, pct, MONTHS } from '../ui.js';
+
+/** Mood over the last 30 days: strip of shapes, completion per band, frequent feelings and factors. */
+function moodSection(doc, today) {
+  const from = addDays(today, -29);
+  const s = moodStats(doc, from, today);
+  if (!s.days) {
+    return `<section class="card"><h2>Umore</h2>
+      <p class="muted">Registra l’umore dalla schermata Oggi: qui vedrai come cambia e quanto incide sulle abitudini.</p></section>`;
+  }
+  const cells = Array.from({ length: 30 }, (_, i) => {
+    const k = addDays(from, i);
+    const m = moodOf(doc, k);
+    return m
+      ? `<canvas data-mood="${m.mood}" width="26" height="26" data-tip="${esc(`${fmtShort(k)} · ${MOOD_LABELS[m.mood - 1]}`)}"></canvas>`
+      : `<span class="mood-empty" data-tip="${fmtShort(k)} · nessun umore"></span>`;
+  }).join('');
+  const { piacevole: good, spiacevole: bad } = s.byBand;
+  const compare = good != null && bad != null
+    ? `Nei giorni piacevoli completi in media il <b>${pct(good)}</b> delle abitudini, in quelli spiacevoli il <b>${pct(bad)}</b>.`
+    : good != null ? `Nei giorni piacevoli completi in media il <b>${pct(good)}</b> delle abitudini.`
+      : bad != null ? `Nei giorni spiacevoli completi in media il <b>${pct(bad)}</b> delle abitudini.` : '';
+  const top = (list) => list.slice(0, 4).map(([n, c]) => `<span class="chip static">${esc(n)} <small>×${c}</small></span>`).join('');
+  return `<section class="card"><h2>Umore · ultimi 30 giorni</h2>
+    <div class="mood-strip">${cells}</div>
+    ${compare ? `<p class="mood-compare">${compare}</p>` : ''}
+    ${s.feelings.length ? `<p class="muted mood-sub">Emozioni più frequenti</p><div class="chips">${top(s.feelings)}</div>` : ''}
+    ${s.factors.length ? `<p class="muted mood-sub">Cosa influisce di più</p><div class="chips">${top(s.factors)}</div>` : ''}
+  </section>`;
+}
 
 let mode = 'week';
 
@@ -48,6 +78,7 @@ function overview(el, doc, today, refresh) {
       ${lineChart(trendPoints(doc, habits, today), 'var(--accent)', 'Percentuale di completamento nel tempo')}
     </section>
     <section class="card"><h2>Ultimi 12 mesi</h2>${heatmap((k) => dayPercent(doc, k), 'var(--accent)', today)}</section>
+    ${moodSection(doc, today)}
     <h2 style="margin:20px 4px 10px">Per abitudine</h2>
     <ul class="card list rows">${rows}</ul>`;
 
@@ -57,6 +88,7 @@ function overview(el, doc, today, refresh) {
     refresh();
   };
   scrollHeatmaps(el);
+  paintMoods(el);
 }
 
 function detail(el, doc, h, today) {

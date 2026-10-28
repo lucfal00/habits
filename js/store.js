@@ -1,6 +1,6 @@
 // Persistence: the only module that touches localStorage.
 // Emits 'change' after data mutations and 'sync' when sync status or the banner changes.
-import { emptyDoc, validateDoc, mergeDocs, activeHabits, todayKey } from './logic.js';
+import { emptyDoc, validateDoc, mergeDocs, activeHabits, todayKey, addDays } from './logic.js';
 import { connect, syncOnce } from './sync.js';
 
 const KEY = 'habits.v1';
@@ -36,6 +36,7 @@ export function load() {
     const d = JSON.parse(raw);
     if (!validateDoc(d)) throw new Error('invalid');
     d.settings = { theme: 'auto', lastBackup: 0, ...d.settings };
+    d.journal ??= {};
     doc = d;
   } catch {
     try { localStorage.setItem(KEY + '.corrupt', raw); } catch { /* best effort */ }
@@ -110,6 +111,62 @@ export function setEntry(key, id, v) {
   save();
 }
 
+/** "Salta oggi" on/off for one habit on one day (a skip also clears the value). */
+export function setSkip(key, id, skipped) {
+  (doc.entries[key] ??= {})[id] = skipped ? { v: 0, s: 1, t: Date.now() } : { v: 0, t: Date.now() };
+  save();
+}
+
+// ---- Pauses and vacation -------------------------------------------------
+
+export function addPause(id, from, to) {
+  const h = find(id);
+  if (h) updateHabit(id, { pauses: [...(h.pauses || []), { from, to }] });
+}
+
+export function removePause(id, index) {
+  const h = find(id);
+  if (h) updateHabit(id, { pauses: (h.pauses || []).filter((_, i) => i !== index) });
+}
+
+/** Pause every active habit for [from, to], marked as vacation. */
+export function startVacation(from, to) {
+  const now = Date.now();
+  for (const h of activeHabits(doc)) {
+    h.pauses = [...(h.pauses || []), { from, to, vac: true }];
+    h.updatedAt = now;
+  }
+  save();
+}
+
+/** End the vacation covering today: shorten it to yesterday, or drop it if it starts today. */
+export function endVacation(today) {
+  const covers = (p) => p.vac && p.from <= today && p.to >= today;
+  const now = Date.now();
+  for (const h of doc.habits) {
+    if (!h.pauses?.some(covers)) continue;
+    h.pauses = h.pauses.flatMap((p) => {
+      if (!covers(p)) return [p];
+      return p.from === today ? [] : [{ ...p, to: addDays(today, -1) }];
+    });
+    h.updatedAt = now;
+  }
+  save();
+}
+
+// ---- Mood journal --------------------------------------------------------
+
+export function setJournal(key, { mood, feelings = [], factors = [], note = '' }) {
+  doc.journal[key] = { mood, feelings, factors, note, t: Date.now() };
+  save();
+}
+
+/** Clearing keeps a dated tombstone (mood 0) so the deletion syncs to other devices. */
+export function clearJournal(key) {
+  doc.journal[key] = { mood: 0, feelings: [], factors: [], note: '', t: Date.now() };
+  save();
+}
+
 export function setSetting(k, v) {
   doc.settings[k] = v;
   persist();                                      // device-local: nothing to upload
@@ -172,7 +229,7 @@ function storeSyncCfg() {
 /** Keep anything edited while a network round trip was in flight (newest wins). */
 function adopt(merged) {
   const r = mergeDocs(doc, merged);
-  if (r.habits + r.entries) {
+  if (r.habits + r.entries + r.journal) {
     doc = r.doc;
     persist();
   }
