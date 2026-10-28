@@ -1,8 +1,8 @@
 // Mood shapes on canvas. One radial function with 8 lobes; every parameter is interpolated on a continuous
 // level (1 = molto spiacevole … 7 = molto piacevole) so the shape morphs smoothly under the slider:
 // faceted crystal spikes (unpleasant) → ripples (neutral) → double petals with veins and pistil (pleasant).
-// With a time tm (seconds) the shape lives: it breathes, crystals turn and glint, ripples flow outwards,
-// petals sway and the pistil twinkles. tm = 0 draws the still shape.
+// With a time tm (seconds) the shape lives: it breathes and turns at every level, crystals glint, ripples flow
+// outwards, petals sway and the pistil twinkles. tm = 0 draws the still shape.
 
 const N = 8;
 // amp, sharp, inner colour, outer colour, facet, ripple, petals
@@ -75,7 +75,9 @@ export function drawMood(canvas, level, { faded = false, tm = 0 } = {}) {
   const live = tm > 0;
   const breath = 1 + 0.04 * Math.sin(tm * 1.5) * (0.35 + 0.65 * p.petals + 0.3 * p.ripple);
   const R = size * 0.33 * breath;
-  const rot = tm * 0.12 * p.facet + 0.07 * Math.sin(tm * 1.1) * p.petals;   // crystals turn, petals sway
+  // Turns at one steady speed at every level (a level-dependent speed × a large tm would make the angle jump
+  // while the slider moves); petals also sway.
+  const rot = tm * 0.1 + 0.07 * Math.sin(tm * 1.1) * p.petals;
   const lw = Math.max(0.6, size / 220);
 
   // aura + glow

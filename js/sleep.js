@@ -35,7 +35,6 @@ export function drawSleep(canvas, level, { faded = false, tm = 0 } = {}) {
   const outer = mix(OUTER[0], OUTER[1], t);
   const inner = mix(INNER[0], INNER[1], t);
   const amp = (1 - t) * 0.11 + 0.006;                         // restless → calm
-  const speed = 0.6 + (1 - t) * 2.6;
 
   ctx.save();
   ctx.shadowColor = css(outer, 0.5);
@@ -45,8 +44,10 @@ export function drawSleep(canvas, level, { faded = false, tm = 0 } = {}) {
     ctx.beginPath();
     for (let i = 0; i <= 200; i++) {
       const th = (2 * Math.PI * i) / 200;
-      const r = r0 * (1 + amp * Math.sin(9 * th + tm * speed * (1 + k * 0.3) + k)
-        + amp * 0.6 * (1 - t) * Math.sin(14 * th - tm * speed * 1.4 + k * 2));
+      // fixed speeds, so moving the slider never makes the waves jump: a slow swell for every level and a
+      // fast choppy wave that fades in as sleep gets worse
+      const r = r0 * (1 + amp * Math.sin(9 * th + tm * 0.9 * (1 + k * 0.3) + k)
+        + amp * 0.8 * (1 - t) * Math.sin(14 * th - tm * 3.2 + k * 2));
       const x = c + r * Math.cos(th);
       const y = c + r * Math.sin(th);
       if (i) ctx.lineTo(x, y);
