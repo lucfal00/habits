@@ -94,6 +94,7 @@ export function render(el, { doc, today, refresh }) {
     <header class="top">
       <button class="icon-btn" data-act="prev" aria-label="Giorno precedente">‹</button>
       <div class="grow"><h1>${title}</h1><small>${fmtDay(day)}</small></div>
+      ${day !== today ? '<button class="btn small today-btn" data-act="today" aria-label="Torna a oggi">↩ Oggi</button>' : ''}
       <button class="icon-btn" data-act="next" aria-label="Giorno successivo" ${day >= today ? 'disabled' : ''}>›</button>
     </header>
     ${vacation ? `<div class="card notice vacation"><p>🏖️ In vacanza fino a ${fmtDay(vacation).toLowerCase()}: le serie sono al sicuro.</p>
@@ -112,8 +113,8 @@ export function render(el, { doc, today, refresh }) {
     const b = e.target.closest('[data-act]');
     if (!b || b.tagName === 'INPUT') return;
     const act = b.dataset.act;
-    if (act === 'prev' || act === 'next') {
-      day = addDays(day, act === 'prev' ? -1 : 1);
+    if (act === 'prev' || act === 'next' || act === 'today') {
+      day = act === 'today' ? today : addDays(day, act === 'prev' ? -1 : 1);
       if (day > today) day = today;
       refresh();
       return;

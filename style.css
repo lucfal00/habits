@@ -316,3 +316,4 @@ details .rows li { padding-left: 0; padding-right: 0; }
 .mood-empty { width: 6px; height: 6px; border-radius: 50%; background: var(--track); }
 .mood-compare { margin: 0 0 10px; }
 .mood-sub { margin: 10px 0 6px; font-size: .82rem; }
+.today-btn { border-radius: 999px; border-color: var(--accent); color: var(--accent); white-space: nowrap; }
