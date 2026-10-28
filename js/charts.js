@@ -82,13 +82,14 @@ function xLabels(points, x, h = FRAME.H) {
 
 // ---- Line: % over time (single series, no legend) ---------------------
 
-/** points: [{ label, tip, value: null | 0..1 }]; one slot per point, so the axis is always complete. */
-export function lineChart(points, color, ariaLabel) {
+/** points: [{ label, tip, value: null | 0..1 }]; one slot per point, so the axis is always complete.
+ *  shade: colour each dot with the heatmap scale (same steps as "Meno → Più"). */
+export function lineChart(points, color, ariaLabel, { shade = false } = {}) {
   const { W, H, L, R, T } = FRAME;
   const ih = H - T - FRAME.B;
   const { x } = slots(points.length);
   const y = (v) => T + ih * (1 - v);
-  const dotR = points.length > 20 ? 3 : 4;
+  const dotR = (points.length > 20 ? 3 : 4) + (shade ? 1.5 : 0);   // shaded dots need area to read the step
   const grid = [0, 0.5, 1].map((g) => `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(g)}" y2="${y(g)}"/>
     <text x="${L - 6}" y="${y(g) + 3}" text-anchor="end">${g * 100}%</text>`).join('');
   let d = '';
@@ -100,11 +101,14 @@ export function lineChart(points, color, ariaLabel) {
     const py = y(p.value).toFixed(1);
     d += `${pen ? 'L' : 'M'}${px} ${py}`;
     pen = true;
-    dots += `<circle cx="${px}" cy="${py}" r="${dotR}" style="fill:${color};stroke:var(--card)" stroke-width="2"/>
+    // shaded: an opaque card disc underneath, so the line doesn't show through and the tint matches the heatmap cell
+    const fill = shade ? cellStyle(p.value, color) : `fill:${color}`;
+    if (shade) dots += `<circle cx="${px}" cy="${py}" r="${dotR}" style="fill:var(--card)"/>`;
+    dots += `<circle cx="${px}" cy="${py}" r="${dotR}" style="${fill};stroke:var(--card)" stroke-width="2"/>
       <circle class="hit" cx="${px}" cy="${py}" r="14" data-tip="${esc(`${p.tip} · ${pct(p.value)}`)}"/>`;
   });
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(ariaLabel)}">${grid}${xLabels(points, x)}
-    <path d="${d}" fill="none" style="stroke:${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>${dots}</svg>`;
+    <path d="${d}" fill="none" style="stroke:${color};stroke-opacity:${shade ? 0.45 : 1}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>${dots}</svg>`;
 }
 
 // ---- Bars: value vs target (single series) -----------------------------

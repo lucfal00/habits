@@ -115,7 +115,7 @@ function overview(el, doc, today, refresh) {
       <button class="icon-btn" data-act="next" aria-label="Periodo successivo" ${canNext ? '' : 'disabled'}>›</button>
     </div>
     <section class="card"><h2>Completamento</h2>
-      ${lineChart(trend, 'var(--accent)', 'Percentuale di abitudini completate nel periodo')}
+      ${lineChart(trend, 'var(--accent)', 'Percentuale di abitudini completate nel periodo', { shade: true })}
     </section>
     <section class="card"><h2>Ultimi 12 mesi</h2>${heatmap((k) => dayPercent(doc, k), 'var(--accent)', today)}</section>
     ${moodSection(doc, period, r, stats, labels, today)}
