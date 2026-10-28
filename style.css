@@ -348,3 +348,17 @@ details .rows li { padding-left: 0; padding-right: 0; }
 .eff-axis { display: grid; grid-template-columns: minmax(0, 1fr) 46% 3.4em; gap: 8px; margin-bottom: 6px; font-size: .75rem; color: var(--muted); }
 .eff-axis span { display: flex; justify-content: space-between; }
 .eff-foot { margin: 12px 0 0; font-size: .78rem; }
+
+/* ---- Wide screens: Statistiche cards in two columns, related cards side by side ---- */
+.list-title { margin: 20px 4px 10px; }
+@media (min-width: 1000px) {
+  main:has(.stats-grid) { max-width: 1160px; }
+  main:has(.stats-grid) > .top, main:has(.stats-grid) > .period-seg, main:has(.stats-grid) > .period-nav {
+    max-width: 560px; margin-left: auto; margin-right: auto;
+  }
+  .stats-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .stats-grid > .card, .st-habits .card { margin: 0; }
+  .stats-grid > .st-wide { grid-column: 1 / -1; }
+  .st-habits .list-title { margin-top: 0; }
+}
+

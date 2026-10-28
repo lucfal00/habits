@@ -59,7 +59,7 @@ function moodSection(doc, kind, r, stats, labels, today) {
   const end = r.to < today ? r.to : today;
   const s = moodStats(doc, r.from, end);
   if (!s.days) {
-    return `<section class="card"><h2>Umore</h2>
+    return `<section class="card st-wide"><h2>Umore</h2>
       <p class="muted">Nessun umore registrato in questo periodo. Registralo dalla schermata Oggi: qui vedrai come cambia
       e come va insieme alle abitudini.</p></section>`;
   }
@@ -102,7 +102,7 @@ function sleepSection(kind, doc, r, stats, labels, today) {
   const end = r.to < today ? r.to : today;
   const [all] = bucketStats(doc, [{ from: r.from, to: end }], today);
   if (!all.nights) {
-    return `<section class="card"><h2>Sonno</h2>
+    return `<section class="card st-wide"><h2>Sonno</h2>
       <p class="muted">Nessuna notte registrata in questo periodo. Registrala dalla schermata Oggi: qui vedrai come dormi
       e quali abitudini ti aiutano.</p></section>`;
   }
@@ -193,6 +193,7 @@ function overview(el, doc, today, refresh) {
       <b>${periodTitle(period, r)}</b>
       <button class="icon-btn" data-act="next" aria-label="Periodo successivo" ${canNext ? '' : 'disabled'}>›</button>
     </div>
+    <div class="stats-grid">
     <section class="card"><h2>Completamento</h2>
       ${lineChart(trend, 'var(--accent)', 'Percentuale di abitudini completate nel periodo', { shade: true })}
     </section>
@@ -200,8 +201,9 @@ function overview(el, doc, today, refresh) {
     ${moodSection(doc, period, r, stats, labels, today)}
     ${sleepSection(period, doc, r, stats, labels, today)}
     ${effectsSection(period, doc, r, today)}
-    <h2 style="margin:20px 4px 10px">Per abitudine</h2>
-    <ul class="card list rows">${rows}</ul>`;
+    <div class="st-habits"><h2 class="list-title">Per abitudine</h2>
+    <ul class="card list rows">${rows}</ul></div>
+    </div>`;
 
   el.onchange = (e) => {
     if (e.target.name === 'effect') {
