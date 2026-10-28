@@ -326,3 +326,21 @@ test('habitEffects: habit day vs next night (sleep, hours), same day (mood), 3+3
   assert.equal(mood[0].with, 6);
   assert.equal(mood[0].without, 3);
 });
+
+test('sleepByLevel: each night with the completion of the day before', () => {
+  const h = habit({ start: '2026-10-19' });
+  const d = docWith([h], { a: mark(['2026-10-19', '2026-10-21']) });
+  d.sleep = {
+    '2026-10-20': { q: 5, t: 1 },                 // after the 19th: done
+    '2026-10-21': { q: 2, t: 1 },                 // after the 20th: not done
+    '2026-10-22': { q: 5, h: 8, t: 1 },           // after the 21st: done
+    '2026-10-19': { q: 3, t: 1 },                 // day before the habit started: no completion
+  };
+  const lv = L.sleepByLevel(d, '2026-10-19', '2026-10-27');
+  assert.equal(lv.length, 5);
+  assert.deepEqual(lv[4].values, [1, 1]);
+  assert.deepEqual(lv[1].values, [0]);
+  assert.deepEqual(lv[2].values, []);
+  assert.equal(lv[4].avg, 1);
+  assert.equal(lv[0].avg, null);
+});

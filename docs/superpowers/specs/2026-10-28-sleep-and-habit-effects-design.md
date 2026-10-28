@@ -28,6 +28,8 @@ Data: 2026-10-28 · Stato: approvato dall'utente
 ## Statistiche (seguono il periodo scelto)
 - Card **Sonno**: puntini della qualità (colore del livello, scala 1–5) e sotto barre delle ore, allineati per
   giorno/settimana/mese come Umore; frase di sintesi "In media: Buono · 7,2 h (12 notti)". Senza dati: invito.
+- Card **Sonno e abitudini**: come "Umore e abitudini", per ogni livello di sonno 1–5 la % di abitudini completate
+  il giorno prima (puntino tenue per notte, media per livello); compare da 2 notti registrate.
 - Card **Cosa ti fa stare meglio**: selettore Sonno · Ore · Umore. Per ogni abitudine, media con / senza:
   - Sonno e Ore: abitudine del giorno D → notte registrata il giorno D+1;
   - Umore: stesso giorno.

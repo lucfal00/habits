@@ -356,6 +356,18 @@ export function moodByLevel(doc, from, to) {
   return levels;
 }
 
+/** Per sleep level 1..5: completion % of the habits of the day before each recorded night, and their mean. */
+export function sleepByLevel(doc, from, to) {
+  const levels = Array.from({ length: 5 }, (_, i) => ({ level: i + 1, values: [], avg: null }));
+  for (const k of days(from, to)) {
+    const s = sleepOf(doc, k);
+    const p = s && dayPercent(doc, addDays(k, -1));
+    if (s && p != null) levels[s.q - 1].values.push(p);
+  }
+  for (const l of levels) l.avg = mean(l.values);
+  return levels;
+}
+
 // ---- Backup ------------------------------------------------------------
 
 const KEY_RE = /^\d{4}-\d{2}-\d{2}$/;

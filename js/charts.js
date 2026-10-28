@@ -219,13 +219,16 @@ export function habitBars(points, ariaLabel) {
     ${bars}${labels}</svg>`;
 }
 
-/** levels: [{ level, values: [0..1], avg }] → every day as a faint dot, the mean per level highlighted. */
-export function moodCorrelation(levels, labels, ariaLabel) {
+/**
+ * levels: [{ level, values: [0..1], avg }] → every day / night as a faint dot, the mean per level highlighted.
+ * names: tooltip name per level; color(level); axis: [[index, text, anchor]]; unit: [singular, plural].
+ */
+function levelCorrelation(levels, { names, color, axis, unit }, ariaLabel) {
   const H = 170;
   const T = 10;
   const B = 24;
   const ih = H - T - B;
-  const { slot, x } = slots(7);
+  const { slot, x } = slots(levels.length);
   const y = (v) => T + ih * (1 - v);
   const grid = [0, 0.5, 1].map((g) => `<line class="grid" x1="${SLOT.L}" x2="${SLOT.W - SLOT.R}" y1="${y(g)}" y2="${y(g)}"/>
     <text x="${SLOT.L - 5}" y="${y(g) + 3}" text-anchor="end">${g * 100}%</text>`).join('');
@@ -235,21 +238,30 @@ export function moodCorrelation(levels, labels, ariaLabel) {
   levels.forEach((l, i) => {
     l.values.forEach((v, j) => {
       const jitter = ((((j * 37) % 11) - 5) / 5) * slot * 0.22;
-      faint += `<circle cx="${(x(i) + jitter).toFixed(1)}" cy="${y(v).toFixed(1)}" r="2.6" style="fill:${moodColor(l.level)};fill-opacity:.38"/>`;
+      faint += `<circle cx="${(x(i) + jitter).toFixed(1)}" cy="${y(v).toFixed(1)}" r="2.6" style="fill:${color(l.level)};fill-opacity:.38"/>`;
     });
     if (l.avg != null) {
       trend.push(`${x(i).toFixed(1)} ${y(l.avg).toFixed(1)}`);
-      means += `<circle cx="${x(i).toFixed(1)}" cy="${y(l.avg).toFixed(1)}" r="5.5" style="fill:${moodColor(l.level)};stroke:var(--card)" stroke-width="2"/>
+      means += `<circle cx="${x(i).toFixed(1)}" cy="${y(l.avg).toFixed(1)}" r="5.5" style="fill:${color(l.level)};stroke:var(--card)" stroke-width="2"/>
         <circle class="hit" cx="${x(i).toFixed(1)}" cy="${y(l.avg).toFixed(1)}" r="14"
-          data-tip="${esc(`${labels[i]}: media ${pct(l.avg)} (${l.values.length} ${l.values.length === 1 ? 'giorno' : 'giorni'})`)}"/>`;
+          data-tip="${esc(`${names[i]}: media ${pct(l.avg)} (${l.values.length} ${unit[l.values.length === 1 ? 0 : 1]})`)}"/>`;
     }
   });
   const path = trend.length > 1 ? `<path d="M${trend.join('L')}" fill="none" style="stroke:var(--muted)" stroke-width="1.5" stroke-dasharray="3 3"/>` : '';
-  const xl = `<text x="${x(0)}" y="${H - 6}" text-anchor="start">Spiacevole</text>
-    <text x="${x(3)}" y="${H - 6}" text-anchor="middle">Neutro</text>
-    <text x="${x(6)}" y="${H - 6}" text-anchor="end">Piacevole</text>`;
+  const xl = axis.map(([i, text, anchor]) => `<text x="${x(i)}" y="${H - 6}" text-anchor="${anchor}">${text}</text>`).join('');
   return `<svg class="chart" viewBox="0 0 ${SLOT.W} ${H}" role="img" aria-label="${esc(ariaLabel)}">${grid}${faint}${path}${means}${xl}</svg>`;
 }
+
+export const moodCorrelation = (levels, names, ariaLabel) => levelCorrelation(levels, {
+  names, color: moodColor, unit: ['giorno', 'giorni'],
+  axis: [[0, 'Spiacevole', 'start'], [3, 'Neutro', 'middle'], [6, 'Piacevole', 'end']],
+}, ariaLabel);
+
+/** Like moodCorrelation, one slot per sleep level; values are the previous day's habit completion. */
+export const sleepCorrelation = (levels, names, ariaLabel) => levelCorrelation(levels, {
+  names, color: sleepColor, unit: ['notte', 'notti'],
+  axis: [[0, 'Pessimo', 'start'], [2, 'Discreto', 'middle'], [4, 'Ottimo', 'end']],
+}, ariaLabel);
 
 // ---- Sleep: quality dots + hours bars, same slots as the mood charts ------
 

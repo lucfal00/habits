@@ -2,10 +2,10 @@
 // which habits go with better sleep / mood; per-habit detail.
 import {
   activeHabits, addDays, fromKey, dayPercent, habitDayFraction, periodPercent, currentStreak, bestStreak, valueOf,
-  moodStats, moodByLevel, periodRange, shiftPeriod, bucketStats, habitEffects, MOOD_LABELS, SLEEP_LABELS,
+  moodStats, moodByLevel, sleepByLevel, periodRange, shiftPeriod, bucketStats, habitEffects, MOOD_LABELS, SLEEP_LABELS,
 } from '../logic.js';
 import {
-  heatmap, lineChart, barChart, moodDots, habitBars, moodCorrelation, sleepDots, hoursBars, effectBars,
+  heatmap, lineChart, barChart, moodDots, habitBars, moodCorrelation, sleepDots, hoursBars, effectBars, sleepCorrelation,
 } from '../charts.js';
 import { esc, safeColor, fmtShort, fmtDay, fmtNum, pct, cap, MONTHS, DAY_SHORT } from '../ui.js';
 
@@ -125,6 +125,19 @@ function sleepSection(kind, doc, r, stats, labels, today) {
       <p class="mood-compare">In media: ${avg} (${nights(all.nights)})</p>
       ${sleepDots(quality, 'Qualità del sonno nel periodo', { withLabels: all.hours == null })}
       ${all.hours == null ? '' : `<p class="chart-sub">Ore dormite</p>${hoursBars(hours, 'Ore dormite nel periodo')}`}
+    </section>
+    ${sleepHabitsCard(doc, r.from, end)}`;
+}
+
+/** Each night against the habits of the day before: do better days come before better nights? */
+function sleepHabitsCard(doc, from, to) {
+  const levels = sleepByLevel(doc, from, to);
+  const enough = levels.reduce((n, l) => n + l.values.length, 0) >= 2;
+  return `<section class="card"><h2>Sonno e abitudini</h2>
+      ${enough ? `<p class="muted chart-note">Ogni puntino tenue è una notte, con le abitudini completate il giorno prima;
+        quello pieno è la media per livello di sonno.</p>
+        ${sleepCorrelation(levels, SLEEP_LABELS, 'Abitudini completate il giorno prima, per qualità del sonno')}`
+    : '<p class="muted">Servono almeno due notti registrate per confrontarle con le abitudini del giorno prima.</p>'}
     </section>`;
 }
 
