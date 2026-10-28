@@ -58,6 +58,12 @@ export const targetOf = (h) => (h.type === 'quantity' ? h.target : 1);
 
 export const valueOf = (doc, key, id) => doc.entries[key]?.[id]?.v ?? 0;
 
+/** Amount added/removed by the +/− buttons (quantity habits only; default 1). */
+export const stepOf = (h) => (h.type === 'quantity' && h.step > 0 ? h.step : 1);
+
+/** v ± step, rounded to avoid floating-point drift, never below zero. */
+export const nudge = (v, step, dir) => Math.max(0, Math.round((v + dir * step) * 1e6) / 1e6);
+
 // ---- Per-day -----------------------------------------------------------
 
 export const fraction = (h, v) => Math.max(0, Math.min(v / targetOf(h), 1));
@@ -181,6 +187,7 @@ const KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
 function validHabit(h) {
   if (!h || typeof h.id !== 'string' || typeof h.name !== 'string') return false;
   if (h.type !== 'check' && !(h.type === 'quantity' && h.target > 0)) return false;
+  if (h.step !== undefined && !(h.step > 0)) return false;
   if (typeof h.start !== 'string' || !KEY_RE.test(h.start)) return false;
   const f = h.freq;
   if (!f) return false;

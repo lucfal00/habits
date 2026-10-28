@@ -136,7 +136,19 @@ test('mergeDocs: newest wins', () => {
   assert.equal(local.habits[0].name, 'A'); // input not mutated
 });
 
+test('stepOf and nudge: custom +/- step for quantity habits', () => {
+  assert.equal(L.stepOf(habit()), 1);
+  assert.equal(L.stepOf(habit({ type: 'quantity', target: 2 })), 1);
+  assert.equal(L.stepOf(habit({ type: 'quantity', target: 2, step: 0.5 })), 0.5);
+  assert.equal(L.nudge(1.5, 0.5, 1), 2);
+  assert.equal(L.nudge(2, 0.5, -1), 1.5);
+  assert.equal(L.nudge(0.2, 0.1, 1), 0.3);          // no floating-point drift (0.30000000000000004)
+  assert.equal(L.nudge(0.3, 0.5, -1), 0);           // never below zero
+});
+
 test('validateDoc', () => {
+  assert.equal(L.validateDoc(docWith([habit({ type: 'quantity', target: 2, step: 0.5 })])), true);
+  assert.equal(L.validateDoc(docWith([habit({ type: 'quantity', target: 2, step: 0 })])), false);
   assert.equal(L.validateDoc(L.emptyDoc()), true);
   assert.equal(L.validateDoc(docWith([habit()], { a: { '2026-10-27': 1 } })), true);
   assert.equal(L.validateDoc({ ...L.emptyDoc(), version: 2 }), false);

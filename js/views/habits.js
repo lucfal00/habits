@@ -1,5 +1,5 @@
 // "Abitudini": list, reorder, create/edit/archive/delete.
-import { activeHabits } from '../logic.js';
+import { activeHabits, stepOf } from '../logic.js';
 import { createHabit, updateHabit, moveHabit } from '../store.js';
 import { esc, safeColor, freqLabel, fmtNum, parseNum, COLORS, DAY_LETTERS, DAY_SHORT } from '../ui.js';
 
@@ -71,6 +71,7 @@ function renderForm(el, doc, h, today) {
           <label class="field">Obiettivo al giorno<input name="target" inputmode="decimal" value="${v.target === '' ? '' : fmtNum(v.target)}" placeholder="8"></label>
           <label class="field">Unità<input name="unit" maxlength="20" value="${esc(v.unit)}" placeholder="bicchieri"></label>
         </div>
+        <label class="field if-quantity">Passo dei pulsanti + / −<input name="step" inputmode="decimal" value="${fmtNum(stepOf(v))}" placeholder="1"></label>
       </fieldset>
       <fieldset><legend>Frequenza</legend>
         <div class="seg">${radio('kind', 'daily', 'Ogni giorno', v.freq.kind === 'daily')}${radio('kind', 'days', 'Alcuni giorni', v.freq.kind === 'days')}${radio('kind', 'weekly', 'Settimanale', v.freq.kind === 'weekly')}</div>
@@ -115,12 +116,14 @@ function renderForm(el, doc, h, today) {
     const type = f.get('type');
     const kind = f.get('kind');
     const target = parseNum(f.get('target'));
+    const step = parseNum(f.get('step'));
     const pickedDays = f.getAll('days').map(Number);
     const n = Number(f.get('times'));
     const start = f.get('start');
     let msg = '';
     if (!name) msg = 'Inserisci un nome.';
     else if (type === 'quantity' && !(target > 0)) msg = "L'obiettivo deve essere un numero maggiore di 0.";
+    else if (type === 'quantity' && !(step > 0)) msg = 'Il passo dei pulsanti deve essere un numero maggiore di 0.';
     else if (kind === 'days' && !pickedDays.length) msg = 'Scegli almeno un giorno.';
     else if (kind === 'weekly' && !(Number.isInteger(n) && n >= 1 && n <= 7)) msg = 'Le volte a settimana vanno da 1 a 7.';
     else if (!KEY_RE.test(start) || start > today) msg = 'Data di inizio non valida.';
@@ -136,6 +139,7 @@ function renderForm(el, doc, h, today) {
       color: f.get('color'),
       type,
       target: type === 'quantity' ? target : 1,
+      step: type === 'quantity' ? step : 1,
       unit: type === 'quantity' ? f.get('unit').trim() : '',
       freq,
       start,

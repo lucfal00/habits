@@ -1,6 +1,6 @@
 // "Oggi": log the habits of the selected day.
 import {
-  activeHabits, isScheduled, valueOf, fraction, weekCount, dayPercent, currentStreak, addDays,
+  activeHabits, isScheduled, valueOf, fraction, weekCount, dayPercent, currentStreak, addDays, stepOf, nudge,
 } from '../logic.js';
 import { setEntry, exportBackup, getSync } from '../store.js';
 import { ring } from '../charts.js';
@@ -96,8 +96,8 @@ export function render(el, { doc, today, refresh }) {
     if (!h) return;
     const v = valueOf(doc, day, id);
     if (act === 'toggle') setEntry(day, id, v >= 1 ? 0 : 1);
-    if (act === 'inc') setEntry(day, id, v + 1);
-    if (act === 'dec') setEntry(day, id, Math.max(0, v - 1));
+    if (act === 'inc') setEntry(day, id, nudge(v, stepOf(h), 1));
+    if (act === 'dec') setEntry(day, id, nudge(v, stepOf(h), -1));
   };
 
   el.onchange = (e) => {
