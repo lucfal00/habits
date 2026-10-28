@@ -257,3 +257,72 @@ test('validateDoc', () => {
   assert.equal(L.validateDoc({ ...L.emptyDoc(), entries: [] }), false);
   assert.equal(L.validateDoc(null), false);
 });
+
+test('sleep: sleepOf, validation, merge newest wins', () => {
+  const a = L.emptyDoc();
+  assert.deepEqual(a.sleep, {});
+  a.sleep = { '2026-10-27': { q: 4, h: 7.5, t: 5 }, '2026-10-28': { q: 0, t: 9 } };
+  assert.equal(L.sleepOf(a, '2026-10-27').h, 7.5);
+  assert.equal(L.sleepOf(a, '2026-10-28'), null);            // q 0 = deleted
+  assert.equal(L.sleepOf(a, '2026-10-29'), null);
+  assert.equal(L.validateDoc(a), true);
+  assert.equal(L.validateDoc({ ...L.emptyDoc(), sleep: { '2026-10-27': { q: 6, t: 1 } } }), false);
+  assert.equal(L.validateDoc({ ...L.emptyDoc(), sleep: { '2026-10-27': { q: 3, h: 25, t: 1 } } }), false);
+  assert.equal(L.validateDoc({ ...L.emptyDoc(), sleep: { '2026-10-27': { q: 2.5, t: 1 } } }), false);
+  const { sleep, ...old } = L.emptyDoc();
+  assert.equal(L.validateDoc(old), true);                    // documents from older versions
+  const b = L.emptyDoc();
+  b.sleep = { '2026-10-27': { q: 2, t: 4 }, '2026-10-28': { q: 5, h: 8, t: 10 } };
+  const r = L.mergeDocs(a, b);
+  assert.equal(r.sleep, 1);
+  assert.equal(r.doc.sleep['2026-10-27'].q, 4);
+  assert.equal(r.doc.sleep['2026-10-28'].q, 5);
+  assert.equal(L.mergeDocs(a, old).sleep, 0);
+});
+
+test('bucketStats: mean sleep quality and hours per bucket', () => {
+  const d = docWith([habit({ start: '2026-10-19' })]);
+  d.sleep = {
+    '2026-10-20': { q: 4, h: 7, t: 1 },
+    '2026-10-21': { q: 2, t: 1 },
+    '2026-10-22': { q: 0, h: 9, t: 1 },
+  };
+  const [day20, day21, day22] = L.bucketStats(d, L.periodRange('settimana', '2026-10-21').buckets.slice(1, 4), '2026-10-27');
+  assert.equal(day20.sleep, 4);
+  assert.equal(day20.hours, 7);
+  assert.equal(day21.sleep, 2);
+  assert.equal(day21.hours, null);
+  assert.equal(day22.sleep, null);
+  const [week] = L.bucketStats(d, [{ from: '2026-10-19', to: '2026-10-25' }], '2026-10-27');
+  assert.equal(week.sleep, 3);
+  assert.equal(week.nights, 2);
+});
+
+test('habitEffects: habit day vs next night (sleep, hours), same day (mood), 3+3 minimum', () => {
+  const run = habit({ id: 'r', start: '2026-10-01' });
+  const read = habit({ id: 'b', start: '2026-10-01' });
+  const done = ['2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04'];
+  const d = docWith([run, read], { r: mark(done), b: mark(['2026-10-01', '2026-10-02']) });
+  (d.entries['2026-10-08'] ??= {}).r = { v: 0, s: 1, t: 1 };  // skipped: excluded
+  d.sleep = {};
+  d.journal = {};
+  for (let i = 1; i <= 9; i++) {
+    const k = `2026-10-0${i}`;
+    const good = i >= 2 && i <= 5;                              // nights after the 4 run days
+    d.sleep[k] = { q: good ? 5 : 2, h: good ? 8 : 6, t: 1 };
+    d.journal[k] = { mood: done.includes(k) ? 6 : 3, feelings: [], factors: [], note: '', t: 1 };
+  }
+  const sleep = L.habitEffects(d, '2026-10-01', '2026-10-08', 'sleep');
+  assert.equal(sleep.length, 1);                                // 'b' has only 2 days with
+  assert.equal(sleep[0].habit.id, 'r');
+  assert.equal(sleep[0].nWith, 4);
+  assert.equal(sleep[0].nWithout, 3);                           // 5, 6, 7 → nights 6, 7, 8; 8 skipped
+  assert.equal(sleep[0].with, 5);
+  assert.equal(sleep[0].without, 2);
+  assert.equal(sleep[0].diff, 3);
+  const hours = L.habitEffects(d, '2026-10-01', '2026-10-08', 'hours');
+  assert.equal(hours[0].diff, 2);
+  const mood = L.habitEffects(d, '2026-10-01', '2026-10-08', 'mood');
+  assert.equal(mood[0].with, 6);
+  assert.equal(mood[0].without, 3);
+});

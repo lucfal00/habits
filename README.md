@@ -3,7 +3,9 @@
 Tracker di abitudini personale, offline, per iPhone e PC. Nessun account: i dati restano sul dispositivo.
 
 - **Oggi**: segna le abitudini (sì/no o quantità con obiettivo e passo dei pulsanti), naviga tra i giorni,
-  ⏭ salta un giorno senza perdere la serie, registra l'**Umore** (7 livelli con forma animata, emozioni, fattori, nota).
+  ⏭ salta un giorno senza perdere la serie, registra l'**Umore** (7 livelli con forma animata, emozioni, fattori, nota) e il **Sonno** della notte
+  (5 livelli con onde animate, ore dormite facoltative); in Statistiche "Cosa ti fa stare meglio" mostra quali
+  abitudini vanno insieme a un sonno o un umore migliore.
 - **Pausa e vacanza**: metti in pausa un'abitudine o tutte (Impostazioni → Vacanza) per un periodo; non contano e non interrompono le serie.
 - **Abitudini**: crea, modifica, riordina, archivia. Frequenza: ogni giorno, giorni specifici, N volte a settimana.
 - **Statistiche**: andamento % per settimane/mesi, calendario annuale, serie attuale e record, grafico valori/obiettivo.

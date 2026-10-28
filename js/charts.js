@@ -3,6 +3,7 @@
 import { addDays, weekStart, fromKey } from './logic.js';
 import { esc, fmtFull, fmtNum, pct, MONTHS, DAY_SHORT } from './ui.js';
 import { moodColor } from './mood.js';
+import { sleepColor } from './sleep.js';
 
 // ---- Progress ring -----------------------------------------------------
 
@@ -156,17 +157,27 @@ function slots(n) {
   return { slot, x: (i) => SLOT.L + (i + 0.5) * slot };
 }
 
-/** points: [{ mood: null | 1..7 (may be fractional), tip }]. Mood bands in the background. */
+/** One tinted strip per level (dots sit in the middle of theirs); stronger tint towards the extremes. */
+function levelBands(levels, y, color) {
+  const h = Math.abs(y(1) - y(2));
+  const mid = (levels + 1) / 2;
+  let out = '';
+  for (let lv = 1; lv <= levels; lv++) {
+    out += `<rect x="${SLOT.L}" y="${(y(lv) - h / 2 + 1).toFixed(1)}" width="${SLOT.W - SLOT.L - SLOT.R}" height="${(h - 2).toFixed(1)}"
+      rx="3" style="fill:${color(lv)};fill-opacity:${(0.07 + (0.13 * Math.abs(lv - mid)) / (mid - 1)).toFixed(2)}"/>`;
+  }
+  return out;
+}
+
+/** points: [{ mood: null | 1..7 (may be fractional), tip }]. A strip per mood level in the background. */
 export function moodDots(points, ariaLabel) {
   const H = 150;
   const T = 8;
   const B = 6;
   const ih = H - T - B;
   const { slot, x } = slots(points.length);
-  const y = (lv) => T + ih * (1 - (lv - 1) / 6);
-  const band = (a, b, lv, label) => `<rect x="${SLOT.L}" y="${y(b)}" width="${SLOT.W - SLOT.L - SLOT.R}" height="${y(a) - y(b)}"
-      style="fill:${moodColor(lv)};fill-opacity:.1"/>
-    <text x="${SLOT.L - 5}" y="${(y(a) + y(b)) / 2 + 3}" text-anchor="end">${label}</text>`;
+  const y = (lv) => T + ih * (1 - (lv - 0.5) / 7);
+  const label = (lv, text) => `<text x="${SLOT.L - 5}" y="${y(lv) + 3}" text-anchor="end">${text}</text>`;
   const r = Math.max(3.2, Math.min(5.5, slot * 0.36));
   let dots = '';
   points.forEach((p, i) => {
@@ -176,7 +187,7 @@ export function moodDots(points, ariaLabel) {
     dots += `<rect class="hit" x="${(x(i) - slot / 2).toFixed(1)}" y="${T}" width="${slot.toFixed(1)}" height="${ih}" data-tip="${esc(p.tip)}"/>`;
   });
   return `<svg class="chart" viewBox="0 0 ${SLOT.W} ${H}" role="img" aria-label="${esc(ariaLabel)}">
-    ${band(1, 3.5, 2, '☹︎')}${band(3.5, 4.5, 4, '–')}${band(4.5, 7, 6, '☺︎')}${dots}</svg>`;
+    ${levelBands(7, y, moodColor)}${label(1.5, '☹︎')}${label(4, '–')}${label(6.5, '☺︎')}${dots}</svg>`;
 }
 
 /** points: [{ completion: null | 0..1, label, tip }]; x labels shown here, under both charts. */
@@ -238,6 +249,72 @@ export function moodCorrelation(levels, labels, ariaLabel) {
     <text x="${x(3)}" y="${H - 6}" text-anchor="middle">Neutro</text>
     <text x="${x(6)}" y="${H - 6}" text-anchor="end">Piacevole</text>`;
   return `<svg class="chart" viewBox="0 0 ${SLOT.W} ${H}" role="img" aria-label="${esc(ariaLabel)}">${grid}${faint}${path}${means}${xl}</svg>`;
+}
+
+// ---- Sleep: quality dots + hours bars, same slots as the mood charts ------
+
+/** points: [{ sleep: null | 1..5 (may be fractional), label, tip }]; withLabels when no hours chart follows. */
+export function sleepDots(points, ariaLabel, { withLabels = false } = {}) {
+  const B = withLabels ? 24 : 6;
+  const H = 120 + B;
+  const T = 8;
+  const ih = H - T - B;
+  const { slot, x } = slots(points.length);
+  const y = (lv) => T + ih * (1 - (lv - 0.5) / 5);
+  const r = Math.max(3.2, Math.min(5.5, slot * 0.36));
+  let dots = '';
+  points.forEach((p, i) => {
+    if (p.sleep != null) {
+      dots += `<circle cx="${x(i).toFixed(1)}" cy="${y(p.sleep).toFixed(1)}" r="${r}" style="fill:${sleepColor(p.sleep)};stroke:var(--card)" stroke-width="1.5"/>`;
+    }
+    dots += `<rect class="hit" x="${(x(i) - slot / 2).toFixed(1)}" y="${T}" width="${slot.toFixed(1)}" height="${ih}" data-tip="${esc(p.tip)}"/>`;
+  });
+  return `<svg class="chart" viewBox="0 0 ${SLOT.W} ${H}" role="img" aria-label="${esc(ariaLabel)}">
+    ${levelBands(5, y, sleepColor)}
+    <text x="${SLOT.L - 4}" y="${y(5) + 3}" text-anchor="end">Ottimo</text>
+    <text x="${SLOT.L - 4}" y="${y(1) + 3}" text-anchor="end">Pessimo</text>
+    ${dots}${withLabels ? xLabels(points, x, H) : ''}</svg>`;
+}
+
+/** points: [{ hours: null | number, label, tip }]; x labels shown here, under both sleep charts. */
+export function hoursBars(points, ariaLabel) {
+  const H = 96;
+  const T = 6;
+  const B = 22;
+  const ih = H - T - B;
+  const { slot, x } = slots(points.length);
+  const base = T + ih;
+  const top = Math.max(10, Math.ceil(Math.max(0, ...points.map((p) => p.hours ?? 0))));
+  const y = (h) => base - ih * (h / top);
+  const bw = Math.max(2, slot * 0.62);
+  let bars = '';
+  points.forEach((p, i) => {
+    const x0 = x(i) - bw / 2;
+    if (p.hours > 0) {
+      const t = y(p.hours);
+      const rr = Math.min(3, bw / 2, base - t);
+      bars += `<path d="M${x0} ${base}V${t + rr}Q${x0} ${t} ${x0 + rr} ${t}H${x0 + bw - rr}Q${x0 + bw} ${t} ${x0 + bw} ${t + rr}V${base}Z"
+        style="fill:${sleepColor(4.5)};fill-opacity:.85"/>`;
+    }
+    bars += `<rect class="hit" x="${(x(i) - slot / 2).toFixed(1)}" y="${T}" width="${slot.toFixed(1)}" height="${ih}" data-tip="${esc(p.tip)}"/>`;
+  });
+  const grid = [0, 4, 8].map((h) => `<line class="grid" x1="${SLOT.L}" x2="${SLOT.W - SLOT.R}" y1="${y(h)}" y2="${y(h)}"/>
+    <text x="${SLOT.L - 5}" y="${y(h) + 3}" text-anchor="end">${h ? `${h} h` : '0'}</text>`).join('');
+  return `<svg class="chart" viewBox="0 0 ${SLOT.W} ${H}" role="img" aria-label="${esc(ariaLabel)}">
+    ${grid}${bars}${xLabels(points, x, H)}</svg>`;
+}
+
+// ---- Habit effects (diverging: better → teal, worse → coral; one shared scale) ----
+
+/** rows: habitEffects() output. span: smallest half-scale, so tiny differences stay small. */
+export function effectBars(rows, { span, value, tip }) {
+  const max = Math.max(span, ...rows.map((r) => Math.abs(r.diff)));
+  const items = rows.map((r) => `<li data-tip="${esc(tip(r))}">
+      <span class="eff-name">${esc(r.habit.emoji || '•')} ${esc(r.habit.name)}</span>
+      <span class="eff-bar"><i class="${r.diff >= 0 ? 'up' : 'down'}" style="width:${((Math.abs(r.diff) / max) * 50).toFixed(1)}%"></i></span>
+      <b>${value(r.diff)}</b></li>`).join('');
+  return `<div class="eff-axis" aria-hidden="true"><span></span><span><span>peggiora</span><span>migliora</span></span><span></span></div>
+    <ul class="effects">${items}</ul>`;
 }
 
 // ---- Tooltip -----------------------------------------------------------

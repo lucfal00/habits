@@ -37,6 +37,7 @@ export function load() {
     if (!validateDoc(d)) throw new Error('invalid');
     d.settings = { theme: 'auto', lastBackup: 0, ...d.settings };
     d.journal ??= {};
+    d.sleep ??= {};
     doc = d;
   } catch {
     try { localStorage.setItem(KEY + '.corrupt', raw); } catch { /* best effort */ }
@@ -167,6 +168,20 @@ export function clearJournal(key) {
   save();
 }
 
+// ---- Sleep ---------------------------------------------------------------
+
+/** The night ending on the morning of key: quality 1..5, hours optional. */
+export function setSleep(key, { q, h }) {
+  doc.sleep[key] = Number.isFinite(h) ? { q, h, t: Date.now() } : { q, t: Date.now() };
+  save();
+}
+
+/** Clearing keeps a dated tombstone (q 0) so the deletion syncs to other devices. */
+export function clearSleep(key) {
+  doc.sleep[key] = { q: 0, t: Date.now() };
+  save();
+}
+
 export function setSetting(k, v) {
   doc.settings[k] = v;
   persist();                                      // device-local: nothing to upload
@@ -229,7 +244,7 @@ function storeSyncCfg() {
 /** Keep anything edited while a network round trip was in flight (newest wins). */
 function adopt(merged) {
   const r = mergeDocs(doc, merged);
-  if (r.habits + r.entries + r.journal) {
+  if (r.habits + r.entries + r.journal + r.sleep) {
     doc = r.doc;
     persist();
   }

@@ -1,15 +1,31 @@
-// "Statistiche": one period selector (week / month / 6 months / year) drives every chart; heatmap; per-habit detail.
+// "Statistiche": one period selector (week / month / 6 months / year) drives every chart; heatmap; mood, sleep,
+// which habits go with better sleep / mood; per-habit detail.
 import {
   activeHabits, addDays, fromKey, dayPercent, habitDayFraction, periodPercent, currentStreak, bestStreak, valueOf,
-  moodStats, moodByLevel, periodRange, shiftPeriod, bucketStats, MOOD_LABELS,
+  moodStats, moodByLevel, periodRange, shiftPeriod, bucketStats, habitEffects, MOOD_LABELS, SLEEP_LABELS,
 } from '../logic.js';
-import { heatmap, lineChart, barChart, moodDots, habitBars, moodCorrelation } from '../charts.js';
+import {
+  heatmap, lineChart, barChart, moodDots, habitBars, moodCorrelation, sleepDots, hoursBars, effectBars,
+} from '../charts.js';
 import { esc, safeColor, fmtShort, fmtDay, fmtNum, pct, cap, MONTHS, DAY_SHORT } from '../ui.js';
 
 const PERIODS = [['settimana', 'Settimana'], ['mese', 'Mese'], ['6mesi', '6 mesi'], ['anno', 'Anno']];
 const monthYear = new Intl.DateTimeFormat('it-IT', { month: 'long', year: 'numeric' });
 let period = 'settimana';
 let anchor = null;                        // a day inside the shown period; null = the current one
+let effect = 'sleep';                     // outcome compared in "Cosa ti fa stare meglio"
+
+const EFFECTS = [['sleep', 'Sonno'], ['hours', 'Ore'], ['mood', 'Umore']];
+const EFFECT = {
+  sleep: { span: 1, unit: '', count: 'notti', intro: 'Qualità del sonno la notte dopo i giorni in cui completi l’abitudine, rispetto a quando non la completi.' },
+  hours: { span: 1, unit: ' h', count: 'notti', intro: 'Ore dormite la notte dopo i giorni in cui completi l’abitudine, rispetto a quando non la completi.' },
+  mood: { span: 1.5, unit: '', count: 'giorni', intro: 'Umore nei giorni in cui completi l’abitudine, rispetto a quando non la completi.' },
+};
+const fmt1 = (n) => n.toLocaleString('it-IT', { maximumFractionDigits: 1 });
+const signed = (n) => {
+  const r = Math.round(n * 10) / 10;
+  return `${r > 0 ? '+' : r < 0 ? '−' : ''}${fmt1(Math.abs(r))}`;
+};
 
 const dm = (key) => `${+key.slice(8)} ${MONTHS[+key.slice(5, 7) - 1].toLowerCase()}`;
 
@@ -82,6 +98,56 @@ function moodSection(doc, kind, r, stats, labels, today) {
     </section>`;
 }
 
+function sleepSection(kind, doc, r, stats, labels, today) {
+  const end = r.to < today ? r.to : today;
+  const [all] = bucketStats(doc, [{ from: r.from, to: end }], today);
+  if (!all.nights) {
+    return `<section class="card"><h2>Sonno</h2>
+      <p class="muted">Nessuna notte registrata in questo periodo. Registrala dalla schermata Oggi: qui vedrai come dormi
+      e quali abitudini ti aiutano.</p></section>`;
+  }
+  const single = kind === 'settimana' || kind === 'mese';
+  const nights = (n) => `${n} ${n === 1 ? 'notte' : 'notti'}`;
+  const quality = stats.map((b, i) => ({
+    sleep: b.sleep,
+    label: labels[i].label,
+    tip: b.sleep == null ? `${labels[i].tip} · nessuna notte registrata`
+      : `${labels[i].tip} · ${SLEEP_LABELS[Math.round(b.sleep) - 1]}${single ? '' : ` in media (${nights(b.nights)})`}`,
+  }));
+  const hours = stats.map((b, i) => ({
+    hours: b.hours,
+    label: labels[i].label,
+    tip: `${labels[i].tip} · ${b.hours == null ? 'ore non registrate' : `${fmt1(b.hours)} h${single ? '' : ' in media'}`}`,
+  }));
+  const avg = [`<b>${SLEEP_LABELS[Math.round(all.sleep) - 1]}</b>`, all.hours == null ? '' : `<b>${fmt1(all.hours)} h</b>`]
+    .filter(Boolean).join(' · ');
+  return `<section class="card"><h2>Sonno</h2>
+      <p class="mood-compare">In media: ${avg} (${nights(all.nights)})</p>
+      ${sleepDots(quality, 'Qualità del sonno nel periodo', { withLabels: all.hours == null })}
+      ${all.hours == null ? '' : `<p class="chart-sub">Ore dormite</p>${hoursBars(hours, 'Ore dormite nel periodo')}`}
+    </section>`;
+}
+
+function effectsSection(kind, doc, r, today) {
+  const end = r.to < today ? r.to : today;
+  const e = EFFECT[effect];
+  const rows = habitEffects(doc, r.from, end, effect);
+  const seg = EFFECTS.map(([v, label]) => `<label class="pick"><input type="radio" name="effect" value="${v}"
+    ${effect === v ? 'checked' : ''}><span>${label}</span></label>`).join('');
+  const tip = (x) => `${effect === 'mood' ? 'Nei giorni' : 'Dopo i giorni'} con ${x.habit.name}: ${fmt1(x.with)}${e.unit}`
+    + ` (${x.nWith} ${e.count}) · senza: ${fmt1(x.without)}${e.unit} (${x.nWithout} ${e.count})`;
+  const body = rows.length
+    ? effectBars(rows, { span: e.span, value: (d) => signed(d) + e.unit, tip })
+    : `<p class="muted">Servono almeno 3 giorni in cui completi un’abitudine e 3 in cui no, con
+      ${effect === 'mood' ? 'l’umore' : 'il sonno'} registrato.${kind === 'settimana' ? ' Prova Mese o 6 mesi.' : ''}</p>`;
+  return `<section class="card"><h2>Cosa ti fa stare meglio</h2>
+      <div class="seg effect-seg">${seg}</div>
+      <p class="muted chart-note">${e.intro}</p>
+      ${body}
+      <p class="muted eff-foot">È una correlazione, non per forza una causa.</p>
+    </section>`;
+}
+
 function overview(el, doc, today, refresh) {
   const habits = activeHabits(doc);
   if (!habits.length) {
@@ -119,10 +185,17 @@ function overview(el, doc, today, refresh) {
     </section>
     <section class="card"><h2>Ultimi 12 mesi</h2>${heatmap((k) => dayPercent(doc, k), 'var(--accent)', today)}</section>
     ${moodSection(doc, period, r, stats, labels, today)}
+    ${sleepSection(period, doc, r, stats, labels, today)}
+    ${effectsSection(period, doc, r, today)}
     <h2 style="margin:20px 4px 10px">Per abitudine</h2>
     <ul class="card list rows">${rows}</ul>`;
 
   el.onchange = (e) => {
+    if (e.target.name === 'effect') {
+      effect = e.target.value;
+      refresh();
+      return;
+    }
     if (e.target.name !== 'period') return;
     period = e.target.value;
     anchor = null;

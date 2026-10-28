@@ -1,6 +1,8 @@
 // Mood shapes on canvas. One radial function with 8 lobes; every parameter is interpolated on a continuous
 // level (1 = molto spiacevole … 7 = molto piacevole) so the shape morphs smoothly under the slider:
 // faceted crystal spikes (unpleasant) → ripples (neutral) → double petals with veins and pistil (pleasant).
+// With a time tm (seconds) the shape lives: it breathes, crystals turn and glint, ripples flow outwards,
+// petals sway and the pistil twinkles. tm = 0 draws the still shape.
 
 const N = 8;
 // amp, sharp, inner colour, outer colour, facet, ripple, petals
@@ -56,8 +58,8 @@ function outline(ctx, cx, cy, R, amp, sharp, rot = 0) {
   ctx.closePath();
 }
 
-/** Draw the mood shape for `level` (1..7) on a canvas; `faded` draws a placeholder (no mood yet). */
-export function drawMood(canvas, level, { faded = false } = {}) {
+/** Draw the mood shape for `level` (1..7) at time `tm`; `faded` draws a placeholder (no mood yet). */
+export function drawMood(canvas, level, { faded = false, tm = 0 } = {}) {
   const size = canvas.clientWidth || Number(canvas.getAttribute('width'));
   const dpr = window.devicePixelRatio || 1;
   if (canvas.width !== Math.round(size * dpr)) {
@@ -70,18 +72,21 @@ export function drawMood(canvas, level, { faded = false } = {}) {
   ctx.globalAlpha = faded ? 0.35 : 1;
   const p = moodParams(faded ? 4 : level);
   const c = size / 2;
-  const R = size * 0.33;
+  const live = tm > 0;
+  const breath = 1 + 0.04 * Math.sin(tm * 1.5) * (0.35 + 0.65 * p.petals + 0.3 * p.ripple);
+  const R = size * 0.33 * breath;
+  const rot = tm * 0.12 * p.facet + 0.07 * Math.sin(tm * 1.1) * p.petals;   // crystals turn, petals sway
   const lw = Math.max(0.6, size / 220);
 
   // aura + glow
-  outline(ctx, c, c, R * 1.13, p.amp, p.sharp);
+  outline(ctx, c, c, R * 1.13, p.amp, p.sharp, rot);
   ctx.strokeStyle = css(p.outer, 0.35);
   ctx.lineWidth = 1.2 * lw;
   ctx.stroke();
   ctx.save();
   ctx.shadowColor = css(p.outer, 0.55);
-  ctx.shadowBlur = size * 0.08;
-  outline(ctx, c, c, R, p.amp, p.sharp);
+  ctx.shadowBlur = size * (0.08 + 0.02 * Math.sin(tm * 1.5));
+  outline(ctx, c, c, R, p.amp, p.sharp, rot);
   const body = ctx.createRadialGradient(c * 0.84, c * 0.76, 0, c, c, R * 1.4);
   body.addColorStop(0, css(p.inner));
   body.addColorStop(1, css(p.outer));
@@ -91,47 +96,51 @@ export function drawMood(canvas, level, { faded = false } = {}) {
 
   // details, clipped to the body
   ctx.save();
-  outline(ctx, c, c, R, p.amp, p.sharp);
+  outline(ctx, c, c, R, p.amp, p.sharp, rot);
   ctx.clip();
   if (p.facet > 0.01) {                                        // crystal facets: light / dark half of each spike
     for (let i = 0; i < N; i++) {
-      const a = (2 * Math.PI * i) / N;
+      const a = (2 * Math.PI * i) / N + rot;
+      const glint = live ? 0.65 + 0.35 * Math.sin(tm * 2.4 + i * 1.9) : 1;
       for (const [b, col] of [[a + Math.PI / N, [255, 255, 255]], [a - Math.PI / N, [0, 0, 0]]]) {
         ctx.beginPath();
         ctx.moveTo(c, c);
         ctx.lineTo(c + 2 * R * Math.sin(a), c - 2 * R * Math.cos(a));
         ctx.lineTo(c + 2 * R * Math.sin(b), c - 2 * R * Math.cos(b));
         ctx.closePath();
-        ctx.fillStyle = css(col, 0.13 * p.facet);
+        ctx.fillStyle = css(col, 0.13 * p.facet * (col[0] && live ? glint * 1.4 : 1));
         ctx.fill();
       }
       ctx.beginPath();
       ctx.moveTo(c + 0.25 * R * Math.sin(a), c - 0.25 * R * Math.cos(a));
       ctx.lineTo(c + 1.4 * R * Math.sin(a), c - 1.4 * R * Math.cos(a));
-      ctx.strokeStyle = css([255, 255, 255], 0.35 * p.facet);
+      ctx.strokeStyle = css([255, 255, 255], 0.35 * p.facet * glint);
       ctx.lineWidth = 1.2 * lw;
       ctx.stroke();
     }
   }
-  if (p.ripple > 0.01) {                                       // ripples
-    ctx.strokeStyle = css([255, 255, 255], 0.11 * p.ripple);
+  if (p.ripple > 0.01) {                                       // ripples, flowing outwards when live
     ctx.lineWidth = R * 0.05;
-    for (let k = 1; k <= 7; k++) {
+    const phase = live ? (tm * 0.35) % 1 : 0;
+    for (let k = 0; k < 8; k++) {
+      const f = (k + phase) / 7;
+      if (f > 1 || f <= 0) continue;
       ctx.beginPath();
-      ctx.arc(c, c, R * 0.15 * k, 0, 2 * Math.PI);
+      ctx.arc(c, c, R * 1.05 * f, 0, 2 * Math.PI);
+      ctx.strokeStyle = css([255, 255, 255], (live ? 0.14 * Math.sin(Math.PI * f) : 0.11) * p.ripple);
       ctx.stroke();
     }
   }
-  // inner rotated layer
-  outline(ctx, c, c, R * 0.62, p.amp * 0.9, p.sharp, Math.PI / N);
+  // inner layer, counter-rotating
+  outline(ctx, c, c, R * 0.62, p.amp * 0.9, p.sharp, Math.PI / N - rot * 1.5);
   ctx.fillStyle = css(p.inner.map((v) => v * 0.6 + 255 * 0.4), 0.35 + 0.2 * p.petals);
   ctx.fill();
   if (p.petals > 0.01) {                                       // petal veins
     ctx.strokeStyle = css([255, 255, 255], 0.28 * p.petals);
     ctx.lineWidth = 1.4 * lw;
     for (let i = 0; i < N; i++) {
-      const a = (2 * Math.PI * i) / N;
-      const e = R * radius(a, p.amp, p.sharp) * 0.88;
+      const a = (2 * Math.PI * i) / N + rot;
+      const e = R * radius(a - rot, p.amp, p.sharp) * 0.88;
       ctx.beginPath();
       ctx.moveTo(c + 0.22 * R * Math.sin(a), c - 0.22 * R * Math.cos(a));
       ctx.lineTo(c + e * Math.sin(a), c - e * Math.cos(a));
@@ -150,21 +159,13 @@ export function drawMood(canvas, level, { faded = false } = {}) {
   ctx.fillStyle = core;
   ctx.fill();
   if (p.petals > 0.01) {
-    ctx.fillStyle = css([255, 255, 255], 0.75 * p.petals);
     for (let i = 0; i < 10; i++) {
-      const a = (2 * Math.PI * i) / 10 + 0.3;
+      const a = (2 * Math.PI * i) / 10 + 0.3 + tm * 0.2;
+      ctx.fillStyle = css([255, 255, 255], 0.75 * p.petals * (live ? 0.6 + 0.4 * Math.sin(tm * 2.2 + i * 1.3) : 1));
       ctx.beginPath();
       ctx.arc(c + Math.sin(a) * cr * 1.45, c - Math.cos(a) * cr * 1.45, cr * 0.17, 0, 2 * Math.PI);
       ctx.fill();
     }
   }
   ctx.globalAlpha = 1;
-}
-
-/** Paint every <canvas data-mood="1..7 | 0"> inside root (0 = no mood yet). */
-export function paintMoods(root) {
-  for (const cv of root.querySelectorAll('canvas[data-mood]')) {
-    const m = Number(cv.dataset.mood);
-    drawMood(cv, m || 4, { faded: !m });
-  }
 }

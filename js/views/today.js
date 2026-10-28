@@ -1,11 +1,11 @@
-// "Oggi": log the habits of the selected day, skip / pause handling, mood card.
+// "Oggi": log the habits of the selected day, skip / pause handling, sleep and mood cards.
 import {
   activeHabits, isScheduled, isPaused, isSkipped, valueOf, fraction, weekCount, dayPercent, currentStreak,
-  addDays, stepOf, nudge, vacationOn, moodOf, MOOD_LABELS,
+  addDays, stepOf, nudge, vacationOn, moodOf, MOOD_LABELS, sleepOf, SLEEP_LABELS,
 } from '../logic.js';
 import { setEntry, setSkip, endVacation, exportBackup, getSync } from '../store.js';
 import { ring } from '../charts.js';
-import { paintMoods } from '../mood.js';
+import { animateShapes } from '../anim.js';
 import { esc, safeColor, fmtDay, fmtNum, pct, parseNum } from '../ui.js';
 
 const WEEK_MS = 7 * 864e5;
@@ -44,15 +44,24 @@ function card(doc, h, today) {
   </li>`;
 }
 
-function moodCard(doc) {
+/** Sleep (the night before) and mood side by side, each with its living shape. */
+function journalCards(doc) {
+  const s = sleepOf(doc, day);
   const m = moodOf(doc, day);
-  const sub = m
-    ? esc([MOOD_LABELS[m.mood - 1], ...(m.feelings || []).slice(0, 2)].join(' · '))
-    : 'Tocca per registrare com’è andata';
-  return `<button class="card mood-card" data-act="mood">
-    <canvas data-mood="${m ? m.mood : 0}" width="52" height="52" aria-hidden="true"></canvas>
-    <span class="grow"><b>Umore</b><small>${sub}</small></span><span class="chev" aria-hidden="true">›</span>
-  </button>`;
+  const sleepSub = s
+    ? [SLEEP_LABELS[s.q - 1], Number.isFinite(s.h) ? `${fmtNum(s.h)} h` : ''].filter(Boolean).join(' · ')
+    : 'Com’è andata la notte?';
+  const moodSub = m ? MOOD_LABELS[m.mood - 1] : 'Com’è andata la giornata?';
+  return `<div class="journal-row">
+    <button class="card mood-card" data-act="sleep">
+      <canvas data-sleep="${s ? s.q : 0}" width="44" height="44" aria-hidden="true"></canvas>
+      <span class="grow"><b>Sonno</b><small>${esc(sleepSub)}</small></span>
+    </button>
+    <button class="card mood-card" data-act="mood">
+      <canvas data-mood="${m ? m.mood : 0}" width="44" height="44" aria-hidden="true"></canvas>
+      <span class="grow"><b>Umore</b><small>${esc(moodSub)}</small></span>
+    </button>
+  </div>`;
 }
 
 export function render(el, { doc, today, refresh }) {
@@ -104,10 +113,10 @@ export function render(el, { doc, today, refresh }) {
     ${backupDue && !lastBackup ? `<div class="card notice"><p>I tuoi dati sono solo su questo dispositivo:
       collega la sincronizzazione o esporta un backup.</p>
       <a class="btn" href="#impostazioni">Impostazioni</a></div>` : ''}
-    ${moodCard(doc)}
+    ${journalCards(doc)}
     ${body}
     ${pausedNote}`;
-  paintMoods(el);
+  animateShapes(el);
 
   el.onclick = async (e) => {
     const b = e.target.closest('[data-act]');
@@ -119,8 +128,8 @@ export function render(el, { doc, today, refresh }) {
       refresh();
       return;
     }
-    if (act === 'mood') {
-      location.hash = `#umore/${day}`;
+    if (act === 'mood' || act === 'sleep') {
+      location.hash = `#${act === 'mood' ? 'umore' : 'sonno'}/${day}`;
       return;
     }
     if (act === 'endvac') {

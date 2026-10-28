@@ -287,6 +287,11 @@ details .rows li { padding-left: 0; padding-right: 0; }
 .mood-card canvas { width: 52px; height: 52px; flex: none; }
 .mood-card b { display: block; }
 .mood-card .chev { color: var(--muted); font-size: 1.4rem; }
+.journal-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
+.journal-row .mood-card { margin: 0; gap: 10px; padding: 10px 12px; }
+.journal-row .mood-card canvas { width: 44px; height: 44px; }
+.journal-row .mood-card .grow { min-width: 0; }
+.journal-row .mood-card small { display: block; line-height: 1.25; }
 .mood-head { margin: 0 4px 6px; }
 .mood-head small { display: block; }
 .mood-hero { display: grid; justify-items: center; gap: 10px; margin: 8px 0 18px; }
@@ -298,6 +303,12 @@ details .rows li { padding-left: 0; padding-right: 0; }
   background: #fff; border: 0; box-shadow: 0 2px 8px rgba(0, 0, 0, .35); cursor: grab; }
 .mood-slider::-moz-range-thumb { width: 30px; height: 30px; border-radius: 50%; background: #fff; border: 0;
   box-shadow: 0 2px 8px rgba(0, 0, 0, .35); cursor: grab; }
+.sleep-slider { background: linear-gradient(90deg, #b6607d, #8a6fae, #4f7fd8, #5fb8dc); }
+.hours-card { display: flex; align-items: center; gap: 12px; }
+.hours-card .grow { flex: 1; min-width: 0; }
+.hours-card h2 { margin: 0; }
+.hours-val { min-width: 3.6em; text-align: center; font-weight: 700; }
+.hours-clear { width: 34px; height: 34px; font-size: 1.1rem; }
 .mood-scale { width: 100%; max-width: 420px; display: flex; justify-content: space-between; font-size: .78rem; color: var(--muted); }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {
@@ -322,3 +333,18 @@ details .rows li { padding-left: 0; padding-right: 0; }
 .period-nav b { font-size: 1.05rem; }
 .chart-sub { margin: 6px 0 0; font-size: .82rem; color: var(--muted); }
 .chart-note { margin: -4px 0 8px; font-size: .82rem; }
+
+/* ---- Habit effects ------------------------------------------------------ */
+.effect-seg { margin-bottom: 10px; }
+.effects { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.effects li { display: grid; grid-template-columns: minmax(0, 1fr) 46% 3.4em; align-items: center; gap: 8px; }
+.eff-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: .9rem; }
+.eff-bar { position: relative; height: 12px; border-radius: 6px; background: var(--track); }
+.eff-bar::before { content: ''; position: absolute; left: 50%; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--muted); opacity: .5; }
+.eff-bar i { position: absolute; top: 0; bottom: 0; border-radius: 6px; }
+.eff-bar i.up { left: 50%; background: #14b8a6; }
+.eff-bar i.down { right: 50%; background: #f43f5e; }
+.effects b { text-align: right; font-size: .9rem; font-variant-numeric: tabular-nums; }
+.eff-axis { display: grid; grid-template-columns: minmax(0, 1fr) 46% 3.4em; gap: 8px; margin-bottom: 6px; font-size: .75rem; color: var(--muted); }
+.eff-axis span { display: flex; justify-content: space-between; }
+.eff-foot { margin: 12px 0 0; font-size: .78rem; }

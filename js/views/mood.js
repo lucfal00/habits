@@ -1,7 +1,7 @@
 // "Umore" (#umore/<day>): morphing shape on a continuous slider, feelings, factors, note.
 import { moodOf, moodBand, MOOD_LABELS } from '../logic.js';
 import { setJournal, clearJournal } from '../store.js';
-import { drawMood } from '../mood.js';
+import { animateShapes, redraw } from '../anim.js';
 import { esc, fmtDay } from '../ui.js';
 
 const FEELINGS = {
@@ -43,7 +43,7 @@ export function render(el, { doc, param, today }) {
     <header class="top"><a class="back" href="#oggi">‹ Oggi</a></header>
     <div class="mood-head"><h1>Umore</h1><small>${fmtDay(day)}</small></div>
     <section class="mood-hero">
-      <canvas class="mood-big" width="250" height="250" aria-hidden="true"></canvas>
+      <canvas class="mood-big" data-mood="${Math.round(d.level)}" width="250" height="250" aria-hidden="true"></canvas>
       <div class="mood-label" aria-live="polite">${MOOD_LABELS[Math.round(d.level) - 1]}</div>
       <input class="mood-slider" type="range" min="1" max="7" step="0.01" value="${d.level}" aria-label="Umore, da molto spiacevole a molto piacevole">
       <div class="mood-scale"><span>Molto spiacevole</span><span>Molto piacevole</span></div>
@@ -61,12 +61,7 @@ export function render(el, { doc, param, today }) {
   const label = el.querySelector('.mood-label');
   const slider = el.querySelector('.mood-slider');
   const feelingsBox = el.querySelector('[data-chips="feelings"]');
-  let frame = 0;
   let band = moodBand(Math.round(d.level));
-  const paint = () => {
-    cancelAnimationFrame(frame);
-    frame = requestAnimationFrame(() => drawMood(canvas, d.level));
-  };
   const setLevel = (lv) => {
     d.level = lv;
     label.textContent = MOOD_LABELS[Math.round(lv) - 1];
@@ -75,9 +70,11 @@ export function render(el, { doc, param, today }) {
       band = b;
       feelingsBox.innerHTML = feelingChips(d);
     }
-    paint();
+    canvas.level = lv;
+    redraw(canvas);
   };
-  drawMood(canvas, d.level);
+  canvas.level = d.level;                         // the shape follows the slider, fractional levels included
+  animateShapes(el);
 
   el.oninput = (e) => {
     if (e.target === slider) setLevel(Number(slider.value));

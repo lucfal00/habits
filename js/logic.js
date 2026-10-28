@@ -47,7 +47,7 @@ function* days(from, to) {
 // ---- Document ----------------------------------------------------------
 
 export function emptyDoc() {
-  return { version: 1, habits: [], entries: {}, journal: {}, settings: { theme: 'auto', lastBackup: 0 } };
+  return { version: 1, habits: [], entries: {}, journal: {}, sleep: {}, settings: { theme: 'auto', lastBackup: 0 } };
 }
 
 export const isActive = (h) => !h.archived && !h.deleted;
@@ -221,6 +221,44 @@ export const moodBand = (m) => (m <= 3 ? 'spiacevole' : m === 4 ? 'neutro' : 'pi
 /** The day's mood record, or null if none / cleared. */
 export const moodOf = (doc, key) => (doc.journal?.[key]?.mood > 0 ? doc.journal[key] : null);
 
+// ---- Sleep -------------------------------------------------------------
+
+export const SLEEP_LABELS = ['Pessimo', 'Scarso', 'Discreto', 'Buono', 'Ottimo'];
+
+/** The night ending on the morning of key (q 1..5, optional hours h), or null if none / cleared. */
+export const sleepOf = (doc, key) => (doc.sleep?.[key]?.q > 0 ? doc.sleep[key] : null);
+
+const OUTCOME = {
+  sleep: (doc, key) => sleepOf(doc, addDays(key, 1))?.q,           // the habit's day → the following night
+  hours: (doc, key) => sleepOf(doc, addDays(key, 1))?.h,
+  mood: (doc, key) => moodOf(doc, key)?.mood,                       // same day
+};
+const MIN_DAYS = 3;
+
+/**
+ * Per active habit over [from, to]: mean outcome on days it was completed vs days it applied but was not.
+ * Skipped, paused and unscheduled days are left out; habits with fewer than 3 days in either group are omitted.
+ * Sorted by the size of the difference.
+ */
+export function habitEffects(doc, from, to, kind) {
+  const outcome = OUTCOME[kind];
+  const out = [];
+  for (const h of activeHabits(doc)) {
+    const yes = [];
+    const no = [];
+    for (const k of days(from, to)) {
+      const f = habitDayFraction(doc, h, k);
+      const v = f == null ? undefined : outcome(doc, k);
+      if (Number.isFinite(v)) (f >= 1 ? yes : no).push(v);
+    }
+    if (yes.length < MIN_DAYS || no.length < MIN_DAYS) continue;
+    const w = mean(yes);
+    const wo = mean(no);
+    out.push({ habit: h, with: w, without: wo, nWith: yes.length, nWithout: no.length, diff: w - wo });
+  }
+  return out.sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
+}
+
 /** Over [from, to]: recorded days, mean completion per band, most frequent feelings and factors. */
 export function moodStats(doc, from, to) {
   const sums = { spiacevole: [0, 0], neutro: [0, 0], piacevole: [0, 0] };
@@ -282,19 +320,27 @@ export function shiftPeriod(kind, anchor, dir) {
   return addMonths(anchor, dir * ({ mese: 1, '6mesi': 6 }[kind] ?? 12));
 }
 
-/** Per bucket: habit completion (day % for single days) and mean recorded mood; future buckets are empty. */
+/** Per bucket: habit completion (day % for single days), mean mood, sleep quality and hours; future buckets are empty. */
 export function bucketStats(doc, buckets, today) {
   const habits = activeHabits(doc);
   return buckets.map(({ from, to }) => {
-    if (from > today) return { from, to, completion: null, mood: null, n: 0 };
+    if (from > today) return { from, to, completion: null, mood: null, n: 0, sleep: null, hours: null, nights: 0 };
     const end = to < today ? to : today;
     const moods = [];
+    const quality = [];
+    const hours = [];
     for (const k of days(from, end)) {
       const m = moodOf(doc, k);
       if (m) moods.push(m.mood);
+      const s = sleepOf(doc, k);
+      if (s) quality.push(s.q);
+      if (Number.isFinite(s?.h)) hours.push(s.h);
     }
     const completion = from === to ? dayPercent(doc, from) : periodPercent(doc, habits, from, end, today);
-    return { from, to, completion, mood: mean(moods), n: moods.length };
+    return {
+      from, to, completion, mood: mean(moods), n: moods.length,
+      sleep: mean(quality), hours: mean(hours), nights: quality.length,
+    };
   });
 }
 
@@ -323,6 +369,9 @@ function validJournalDay(j) {
     && strings(j.feelings) && strings(j.factors) && (j.note === undefined || typeof j.note === 'string');
 }
 
+const validSleepDay = (s) => !!s && typeof s === 'object' && Number.isInteger(s.q) && s.q >= 0 && s.q <= 5
+  && (s.h === undefined || (Number.isFinite(s.h) && s.h >= 0 && s.h <= 24));
+
 function validHabit(h) {
   if (!h || typeof h.id !== 'string' || typeof h.name !== 'string') return false;
   if (h.type !== 'check' && !(h.type === 'quantity' && h.target > 0)) return false;
@@ -345,6 +394,8 @@ export function validateDoc(d) {
   if (!isObj(d.entries)) return false;
   if (d.journal !== undefined && !(isObj(d.journal)
     && Object.entries(d.journal).every(([k, j]) => KEY_RE.test(k) && validJournalDay(j)))) return false;
+  if (d.sleep !== undefined && !(isObj(d.sleep)
+    && Object.entries(d.sleep).every(([k, s]) => KEY_RE.test(k) && validSleepDay(s)))) return false;
   return Object.entries(d.entries).every(([k, row]) => KEY_RE.test(k) && isObj(row)
     && Object.values(row).every((e) => isObj(e) && Number.isFinite(e.v)));
 }
@@ -382,6 +433,14 @@ export function mergeDocs(local, incoming) {
       journal++;
     }
   }
+  let sleep = 0;
+  doc.sleep ??= {};
+  for (const [day, n] of Object.entries(incoming.sleep || {})) {
+    if (!doc.sleep[day] || (n.t ?? 0) > (doc.sleep[day].t ?? 0)) {
+      doc.sleep[day] = n;
+      sleep++;
+    }
+  }
   doc.settings.lastBackup = Math.max(doc.settings.lastBackup || 0, incoming.settings?.lastBackup || 0);
-  return { doc, habits, entries, journal };
+  return { doc, habits, entries, journal, sleep };
 }

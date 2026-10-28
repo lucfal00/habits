@@ -7,9 +7,10 @@ import * as habits from './views/habits.js';
 import * as stats from './views/stats.js';
 import * as settings from './views/settings.js';
 import * as mood from './views/mood.js';
+import * as sleep from './views/sleep.js';
 
-const views = { oggi: today, abitudini: habits, stats, impostazioni: settings, umore: mood };
-const TAB_OF = { umore: 'oggi' };                    // screens without their own tab
+const views = { oggi: today, abitudini: habits, stats, impostazioni: settings, umore: mood, sonno: sleep };
+const TAB_OF = { umore: 'oggi', sonno: 'oggi' };                    // screens without their own tab
 const main = document.getElementById('view');
 const banner = document.getElementById('banner');
 let shown = '';
