@@ -2,6 +2,7 @@
 // Marks: 2px lines, 8px dots, 4px rounded bar tops on the baseline, 2px gaps; text uses text tokens only.
 import { addDays, weekStart, fromKey } from './logic.js';
 import { esc, fmtFull, fmtNum, pct, MONTHS, DAY_SHORT } from './ui.js';
+import { moodColor } from './mood.js';
 
 // ---- Progress ring -----------------------------------------------------
 
@@ -71,22 +72,23 @@ export function heatmap(valueAt, color, today) {
 
 const FRAME = { W: 320, H: 160, L: 36, R: 16, T: 14, B: 24 };
 
-function xLabels(points, x) {
-  const every = Math.ceil(points.length / 6);
-  return points.map((p, i) => ((points.length - 1 - i) % every === 0
-    ? `<text x="${x(i).toFixed(1)}" y="${FRAME.H - 6}" text-anchor="middle">${esc(p.label)}</text>` : '')).join('');
+/** Labels: every point up to 12 (a full week / year); if the caller left some labels empty it chose them; else every k-th. */
+function xLabels(points, x, h = FRAME.H) {
+  const chosen = points.some((p) => !p.label);
+  const every = points.length <= 12 ? 1 : Math.ceil(points.length / 6);
+  return points.map((p, i) => ((chosen ? p.label : (points.length - 1 - i) % every === 0)
+    ? `<text x="${x(i).toFixed(1)}" y="${h - 6}" text-anchor="middle">${esc(p.label)}</text>` : '')).join('');
 }
 
 // ---- Line: % over time (single series, no legend) ---------------------
 
-/** points: [{ label, tip, value: null | 0..1 }] */
+/** points: [{ label, tip, value: null | 0..1 }]; one slot per point, so the axis is always complete. */
 export function lineChart(points, color, ariaLabel) {
-  const { W, H, L, R, T, B } = FRAME;
-  const iw = W - L - R;
-  const ih = H - T - B;
-  const n = points.length;
-  const x = (i) => L + (n === 1 ? iw / 2 : (i * iw) / (n - 1));
+  const { W, H, L, R, T } = FRAME;
+  const ih = H - T - FRAME.B;
+  const { x } = slots(points.length);
   const y = (v) => T + ih * (1 - v);
+  const dotR = points.length > 20 ? 3 : 4;
   const grid = [0, 0.5, 1].map((g) => `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(g)}" y2="${y(g)}"/>
     <text x="${L - 6}" y="${y(g) + 3}" text-anchor="end">${g * 100}%</text>`).join('');
   let d = '';
@@ -98,7 +100,7 @@ export function lineChart(points, color, ariaLabel) {
     const py = y(p.value).toFixed(1);
     d += `${pen ? 'L' : 'M'}${px} ${py}`;
     pen = true;
-    dots += `<circle cx="${px}" cy="${py}" r="4" style="fill:${color};stroke:var(--card)" stroke-width="2"/>
+    dots += `<circle cx="${px}" cy="${py}" r="${dotR}" style="fill:${color};stroke:var(--card)" stroke-width="2"/>
       <circle class="hit" cx="${px}" cy="${py}" r="14" data-tip="${esc(`${p.tip} · ${pct(p.value)}`)}"/>`;
   });
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(ariaLabel)}">${grid}${xLabels(points, x)}
@@ -138,6 +140,100 @@ export function barChart(points, target, color, unit, ariaLabel) {
     <text x="${L - 6}" y="${ty + 3}" text-anchor="end">${fmtNum(target)}</text>
     ${xLabels(points, (i) => x(i) + bw / 2)}</svg>
     <div class="heat-legend"><span class="dash"></span> obiettivo ${fmtNum(target)} ${esc(unit)}</div>`;
+}
+
+// ---- Mood vs habits (aligned day slots; one measure per chart, never a dual axis) ----
+
+const SLOT = { W: 320, L: 36, R: 16 };
+
+/** Slot layout shared by moodDots and habitBars so the two charts line up day by day. */
+function slots(n) {
+  const slot = (SLOT.W - SLOT.L - SLOT.R) / n;
+  return { slot, x: (i) => SLOT.L + (i + 0.5) * slot };
+}
+
+/** points: [{ mood: null | 1..7 (may be fractional), tip }]. Mood bands in the background. */
+export function moodDots(points, ariaLabel) {
+  const H = 150;
+  const T = 8;
+  const B = 6;
+  const ih = H - T - B;
+  const { slot, x } = slots(points.length);
+  const y = (lv) => T + ih * (1 - (lv - 1) / 6);
+  const band = (a, b, lv, label) => `<rect x="${SLOT.L}" y="${y(b)}" width="${SLOT.W - SLOT.L - SLOT.R}" height="${y(a) - y(b)}"
+      style="fill:${moodColor(lv)};fill-opacity:.1"/>
+    <text x="${SLOT.L - 5}" y="${(y(a) + y(b)) / 2 + 3}" text-anchor="end">${label}</text>`;
+  const r = Math.max(3.2, Math.min(5.5, slot * 0.36));
+  let dots = '';
+  points.forEach((p, i) => {
+    if (p.mood != null) {
+      dots += `<circle cx="${x(i).toFixed(1)}" cy="${y(p.mood).toFixed(1)}" r="${r}" style="fill:${moodColor(p.mood)};stroke:var(--card)" stroke-width="1.5"/>`;
+    }
+    dots += `<rect class="hit" x="${(x(i) - slot / 2).toFixed(1)}" y="${T}" width="${slot.toFixed(1)}" height="${ih}" data-tip="${esc(p.tip)}"/>`;
+  });
+  return `<svg class="chart" viewBox="0 0 ${SLOT.W} ${H}" role="img" aria-label="${esc(ariaLabel)}">
+    ${band(1, 3.5, 2, '☹︎')}${band(3.5, 4.5, 4, '–')}${band(4.5, 7, 6, '☺︎')}${dots}</svg>`;
+}
+
+/** points: [{ completion: null | 0..1, label, tip }]; x labels shown here, under both charts. */
+export function habitBars(points, ariaLabel) {
+  const H = 96;
+  const T = 6;
+  const B = 22;
+  const ih = H - T - B;
+  const { slot, x } = slots(points.length);
+  const base = T + ih;
+  const bw = Math.max(2, slot * 0.62);
+  let bars = '';
+  points.forEach((p, i) => {
+    const x0 = x(i) - bw / 2;
+    if (p.completion > 0) {
+      const top = base - ih * p.completion;
+      const rr = Math.min(3, bw / 2, base - top);
+      bars += `<path d="M${x0} ${base}V${top + rr}Q${x0} ${top} ${x0 + rr} ${top}H${x0 + bw - rr}Q${x0 + bw} ${top} ${x0 + bw} ${top + rr}V${base}Z"
+        style="fill:var(--accent);fill-opacity:.85"/>`;
+    }
+    bars += `<rect class="hit" x="${(x(i) - slot / 2).toFixed(1)}" y="${T}" width="${slot.toFixed(1)}" height="${ih}" data-tip="${esc(p.tip)}"/>`;
+  });
+  const labels = xLabels(points, x, H);
+  return `<svg class="chart" viewBox="0 0 ${SLOT.W} ${H}" role="img" aria-label="${esc(ariaLabel)}">
+    <line class="grid" x1="${SLOT.L}" x2="${SLOT.W - SLOT.R}" y1="${T}" y2="${T}"/>
+    <line class="grid" x1="${SLOT.L}" x2="${SLOT.W - SLOT.R}" y1="${base}" y2="${base}"/>
+    <text x="${SLOT.L - 5}" y="${T + 3}" text-anchor="end">100%</text>
+    <text x="${SLOT.L - 5}" y="${base + 3}" text-anchor="end">0%</text>
+    ${bars}${labels}</svg>`;
+}
+
+/** levels: [{ level, values: [0..1], avg }] → every day as a faint dot, the mean per level highlighted. */
+export function moodCorrelation(levels, labels, ariaLabel) {
+  const H = 170;
+  const T = 10;
+  const B = 24;
+  const ih = H - T - B;
+  const { slot, x } = slots(7);
+  const y = (v) => T + ih * (1 - v);
+  const grid = [0, 0.5, 1].map((g) => `<line class="grid" x1="${SLOT.L}" x2="${SLOT.W - SLOT.R}" y1="${y(g)}" y2="${y(g)}"/>
+    <text x="${SLOT.L - 5}" y="${y(g) + 3}" text-anchor="end">${g * 100}%</text>`).join('');
+  let faint = '';
+  let means = '';
+  const trend = [];
+  levels.forEach((l, i) => {
+    l.values.forEach((v, j) => {
+      const jitter = ((((j * 37) % 11) - 5) / 5) * slot * 0.22;
+      faint += `<circle cx="${(x(i) + jitter).toFixed(1)}" cy="${y(v).toFixed(1)}" r="2.6" style="fill:${moodColor(l.level)};fill-opacity:.38"/>`;
+    });
+    if (l.avg != null) {
+      trend.push(`${x(i).toFixed(1)} ${y(l.avg).toFixed(1)}`);
+      means += `<circle cx="${x(i).toFixed(1)}" cy="${y(l.avg).toFixed(1)}" r="5.5" style="fill:${moodColor(l.level)};stroke:var(--card)" stroke-width="2"/>
+        <circle class="hit" cx="${x(i).toFixed(1)}" cy="${y(l.avg).toFixed(1)}" r="14"
+          data-tip="${esc(`${labels[i]}: media ${pct(l.avg)} (${l.values.length} ${l.values.length === 1 ? 'giorno' : 'giorni'})`)}"/>`;
+    }
+  });
+  const path = trend.length > 1 ? `<path d="M${trend.join('L')}" fill="none" style="stroke:var(--muted)" stroke-width="1.5" stroke-dasharray="3 3"/>` : '';
+  const xl = `<text x="${x(0)}" y="${H - 6}" text-anchor="start">Spiacevole</text>
+    <text x="${x(3)}" y="${H - 6}" text-anchor="middle">Neutro</text>
+    <text x="${x(6)}" y="${H - 6}" text-anchor="end">Piacevole</text>`;
+  return `<svg class="chart" viewBox="0 0 ${SLOT.W} ${H}" role="img" aria-label="${esc(ariaLabel)}">${grid}${faint}${path}${means}${xl}</svg>`;
 }
 
 // ---- Tooltip -----------------------------------------------------------

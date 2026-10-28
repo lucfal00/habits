@@ -1,57 +1,85 @@
-// "Statistiche": global trend + heatmap, per-habit detail.
+// "Statistiche": one period selector (week / month / 6 months / year) drives every chart; heatmap; per-habit detail.
 import {
-  activeHabits, addDays, addMonths, monthEnd, weekStart, fromKey,
-  dayPercent, habitDayFraction, periodPercent, currentStreak, bestStreak, valueOf, moodOf, moodStats, MOOD_LABELS,
+  activeHabits, addDays, fromKey, dayPercent, habitDayFraction, periodPercent, currentStreak, bestStreak, valueOf,
+  moodStats, moodByLevel, periodRange, shiftPeriod, bucketStats, MOOD_LABELS,
 } from '../logic.js';
-import { heatmap, lineChart, barChart } from '../charts.js';
-import { paintMoods } from '../mood.js';
-import { esc, safeColor, fmtShort, fmtNum, pct, MONTHS } from '../ui.js';
+import { heatmap, lineChart, barChart, moodDots, habitBars, moodCorrelation } from '../charts.js';
+import { esc, safeColor, fmtShort, fmtDay, fmtNum, pct, cap, MONTHS, DAY_SHORT } from '../ui.js';
 
-/** Mood over the last 30 days: strip of shapes, completion per band, frequent feelings and factors. */
-function moodSection(doc, today) {
-  const from = addDays(today, -29);
-  const s = moodStats(doc, from, today);
+const PERIODS = [['settimana', 'Settimana'], ['mese', 'Mese'], ['6mesi', '6 mesi'], ['anno', 'Anno']];
+const monthYear = new Intl.DateTimeFormat('it-IT', { month: 'long', year: 'numeric' });
+let period = 'settimana';
+let anchor = null;                        // a day inside the shown period; null = the current one
+
+const dm = (key) => `${+key.slice(8)} ${MONTHS[+key.slice(5, 7) - 1].toLowerCase()}`;
+
+function periodTitle(kind, r) {
+  if (kind === 'settimana') return `${dm(r.from)} – ${dm(r.to)}`;
+  if (kind === 'mese') return cap(monthYear.format(fromKey(r.from)));
+  if (kind === '6mesi') return `${MONTHS[+r.from.slice(5, 7) - 1]} – ${MONTHS[+r.to.slice(5, 7) - 1]} ${r.to.slice(0, 4)}`;
+  return r.from.slice(0, 4);
+}
+
+/** Axis label (empty = no label) and tooltip prefix for each bucket; the axis always covers the whole period. */
+function describe(kind, buckets) {
+  let lastMonth = -1;
+  return buckets.map((b, i) => {
+    const day = +b.from.slice(8);
+    const month = +b.to.slice(5, 7) - 1;
+    if (kind === 'settimana') return { label: DAY_SHORT[i], tip: fmtDay(b.from) };
+    if (kind === 'mese') return { label: [1, 8, 15, 22, 29].includes(day) ? String(day) : '', tip: fmtDay(b.from) };
+    if (kind === '6mesi') {
+      const label = month !== lastMonth ? MONTHS[month] : '';
+      lastMonth = month;
+      return { label, tip: `Settimana dal ${fmtShort(b.from)}` };
+    }
+    return { label: MONTHS[i], tip: `${MONTHS[i]} ${b.from.slice(0, 4)}` };
+  });
+}
+
+const last30 = (doc, h, today) => periodPercent(doc, [h], addDays(today, -29), today, today);
+
+function moodSection(doc, kind, r, stats, labels, today) {
+  const end = r.to < today ? r.to : today;
+  const s = moodStats(doc, r.from, end);
   if (!s.days) {
     return `<section class="card"><h2>Umore</h2>
-      <p class="muted">Registra l’umore dalla schermata Oggi: qui vedrai come cambia e quanto incide sulle abitudini.</p></section>`;
+      <p class="muted">Nessun umore registrato in questo periodo. Registralo dalla schermata Oggi: qui vedrai come cambia
+      e come va insieme alle abitudini.</p></section>`;
   }
-  const cells = Array.from({ length: 30 }, (_, i) => {
-    const k = addDays(from, i);
-    const m = moodOf(doc, k);
-    return m
-      ? `<canvas data-mood="${m.mood}" width="26" height="26" data-tip="${esc(`${fmtShort(k)} · ${MOOD_LABELS[m.mood - 1]}`)}"></canvas>`
-      : `<span class="mood-empty" data-tip="${fmtShort(k)} · nessun umore"></span>`;
-  }).join('');
+  const single = kind === 'settimana' || kind === 'mese';
+  const moodPts = stats.map((b, i) => ({
+    mood: b.mood,
+    tip: b.mood == null ? `${labels[i].tip} · umore non registrato`
+      : single ? `${labels[i].tip} · ${MOOD_LABELS[Math.round(b.mood) - 1]}`
+        : `${labels[i].tip} · umore medio: ${MOOD_LABELS[Math.round(b.mood) - 1]} (${b.n} ${b.n === 1 ? 'giorno' : 'giorni'})`,
+  }));
+  const habitPts = stats.map((b, i) => ({
+    completion: b.completion,
+    label: labels[i].label,
+    tip: `${labels[i].tip} · abitudini ${pct(b.completion)}`,
+  }));
   const { piacevole: good, spiacevole: bad } = s.byBand;
   const compare = good != null && bad != null
     ? `Nei giorni piacevoli completi in media il <b>${pct(good)}</b> delle abitudini, in quelli spiacevoli il <b>${pct(bad)}</b>.`
     : good != null ? `Nei giorni piacevoli completi in media il <b>${pct(good)}</b> delle abitudini.`
       : bad != null ? `Nei giorni spiacevoli completi in media il <b>${pct(bad)}</b> delle abitudini.` : '';
+  const levels = moodByLevel(doc, r.from, end);
+  const enough = levels.reduce((n, l) => n + l.values.length, 0) >= 2;
   const top = (list) => list.slice(0, 4).map(([n, c]) => `<span class="chip static">${esc(n)} <small>×${c}</small></span>`).join('');
-  return `<section class="card"><h2>Umore · ultimi 30 giorni</h2>
-    <div class="mood-strip">${cells}</div>
-    ${compare ? `<p class="mood-compare">${compare}</p>` : ''}
-    ${s.feelings.length ? `<p class="muted mood-sub">Emozioni più frequenti</p><div class="chips">${top(s.feelings)}</div>` : ''}
-    ${s.factors.length ? `<p class="muted mood-sub">Cosa influisce di più</p><div class="chips">${top(s.factors)}</div>` : ''}
-  </section>`;
-}
-
-let mode = 'week';
-
-const last30 = (doc, h, today) => periodPercent(doc, [h], addDays(today, -29), today, today);
-
-function trendPoints(doc, habits, today) {
-  if (mode === 'week') {
-    return Array.from({ length: 12 }, (_, i) => {
-      const ws = addDays(weekStart(today), -7 * (11 - i));
-      return { label: fmtShort(ws), tip: `Settimana dal ${fmtShort(ws)}`, value: periodPercent(doc, habits, ws, addDays(ws, 6), today) };
-    });
-  }
-  return Array.from({ length: 12 }, (_, i) => {
-    const ms = addMonths(today, i - 11);
-    const d = fromKey(ms);
-    return { label: MONTHS[d.getMonth()], tip: `${MONTHS[d.getMonth()]} ${d.getFullYear()}`, value: periodPercent(doc, habits, ms, monthEnd(ms), today) };
-  });
+  return `<section class="card"><h2>Umore</h2>
+      ${moodDots(moodPts, 'Umore nel periodo')}
+      <p class="chart-sub">Abitudini completate</p>
+      ${habitBars(habitPts, 'Abitudini completate nel periodo')}
+      ${compare ? `<p class="mood-compare">${compare}</p>` : ''}
+    </section>
+    <section class="card"><h2>Umore e abitudini</h2>
+      ${enough ? `<p class="muted chart-note">Ogni puntino tenue è un giorno; quello pieno è la media per livello di umore.</p>
+        ${moodCorrelation(levels, MOOD_LABELS, 'Completamento medio delle abitudini per livello di umore')}`
+    : '<p class="muted">Servono almeno due giorni con umore registrato per confrontarli.</p>'}
+      ${s.feelings.length ? `<p class="muted mood-sub">Emozioni più frequenti</p><div class="chips">${top(s.feelings)}</div>` : ''}
+      ${s.factors.length ? `<p class="muted mood-sub">Cosa influisce di più</p><div class="chips">${top(s.factors)}</div>` : ''}
+    </section>`;
 }
 
 function overview(el, doc, today, refresh) {
@@ -62,7 +90,14 @@ function overview(el, doc, today, refresh) {
       <a class="btn primary" href="#abitudini/nuova">+ Nuova abitudine</a></div>`;
     return;
   }
-  const seg = (v, label) => `<label class="pick"><input type="radio" name="mode" value="${v}" ${mode === v ? 'checked' : ''}><span>${label}</span></label>`;
+  const at = anchor && anchor <= today ? anchor : today;
+  const r = periodRange(period, at);
+  const stats = bucketStats(doc, r.buckets, today);
+  const labels = describe(period, r.buckets);
+  const canNext = periodRange(period, shiftPeriod(period, at, 1)).from <= today;
+  const trend = stats.map((b, i) => ({ value: b.completion, label: labels[i].label, tip: labels[i].tip }));
+  const seg = PERIODS.map(([v, label]) => `<label class="pick"><input type="radio" name="period" value="${v}"
+    ${period === v ? 'checked' : ''}><span>${label}</span></label>`).join('');
   const rows = habits.map((h) => {
     const unit = h.freq.kind === 'weekly' ? 'sett.' : 'gg';
     return `<li><a class="row" href="#stats/${encodeURIComponent(h.id)}">
@@ -73,22 +108,33 @@ function overview(el, doc, today, refresh) {
 
   el.innerHTML = `
     <header class="top"><h1>Statistiche</h1></header>
-    <section class="card">
-      <div class="card-head"><h2>Completamento</h2><div class="seg">${seg('week', 'Settimane')}${seg('month', 'Mesi')}</div></div>
-      ${lineChart(trendPoints(doc, habits, today), 'var(--accent)', 'Percentuale di completamento nel tempo')}
+    <div class="seg period-seg">${seg}</div>
+    <div class="period-nav">
+      <button class="icon-btn" data-act="prev" aria-label="Periodo precedente">‹</button>
+      <b>${periodTitle(period, r)}</b>
+      <button class="icon-btn" data-act="next" aria-label="Periodo successivo" ${canNext ? '' : 'disabled'}>›</button>
+    </div>
+    <section class="card"><h2>Completamento</h2>
+      ${lineChart(trend, 'var(--accent)', 'Percentuale di abitudini completate nel periodo')}
     </section>
     <section class="card"><h2>Ultimi 12 mesi</h2>${heatmap((k) => dayPercent(doc, k), 'var(--accent)', today)}</section>
-    ${moodSection(doc, today)}
+    ${moodSection(doc, period, r, stats, labels, today)}
     <h2 style="margin:20px 4px 10px">Per abitudine</h2>
     <ul class="card list rows">${rows}</ul>`;
 
   el.onchange = (e) => {
-    if (e.target.name !== 'mode') return;
-    mode = e.target.value;
+    if (e.target.name !== 'period') return;
+    period = e.target.value;
+    anchor = null;
+    refresh();
+  };
+  el.onclick = (e) => {
+    const act = e.target.closest('[data-act]')?.dataset.act;
+    if (act !== 'prev' && act !== 'next') return;
+    anchor = shiftPeriod(period, at, act === 'prev' ? -1 : 1);
     refresh();
   };
   scrollHeatmaps(el);
-  paintMoods(el);
 }
 
 function detail(el, doc, h, today) {

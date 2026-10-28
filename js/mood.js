@@ -35,6 +35,12 @@ export function moodParams(level) {
   };
 }
 
+/** Solid colour for a (possibly fractional) level, for chart dots. */
+export function moodColor(level) {
+  const p = moodParams(level);
+  return css(p.inner.map((v, k) => v * 0.45 + p.outer[k] * 0.55));
+}
+
 const radius = (th, amp, sharp) => 1 + amp * (2 * Math.abs(Math.cos((N * th) / 2)) ** sharp - 1);
 
 function outline(ctx, cx, cy, R, amp, sharp, rot = 0) {

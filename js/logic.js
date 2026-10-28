@@ -244,6 +244,72 @@ export function moodStats(doc, from, to) {
   return { days: n, byBand, feelings: top(feelings), factors: top(factors) };
 }
 
+const mean = (a) => (a.length ? a.reduce((s, x) => s + x, 0) / a.length : null);
+
+// ---- Statistics periods ----------------------------------------------------
+
+/** Complete calendar period containing anchor, split in buckets: days (week, month), weeks (6 months), months (year). */
+export function periodRange(kind, anchor) {
+  if (kind === 'settimana') {
+    const from = weekStart(anchor);
+    return { from, to: addDays(from, 6), buckets: Array.from({ length: 7 }, (_, i) => ({ from: addDays(from, i), to: addDays(from, i) })) };
+  }
+  if (kind === 'mese') {
+    const from = monthStart(anchor);
+    const to = monthEnd(anchor);
+    return { from, to, buckets: [...days(from, to)].map((k) => ({ from: k, to: k })) };
+  }
+  if (kind === '6mesi') {
+    const from = addMonths(anchor, -5);
+    const to = monthEnd(anchor);
+    const buckets = [];
+    for (let w = weekStart(from); w <= to; w = addDays(w, 7)) {
+      buckets.push({ from: w < from ? from : w, to: addDays(w, 6) > to ? to : addDays(w, 6) });
+    }
+    return { from, to, buckets };
+  }
+  const from = `${anchor.slice(0, 4)}-01-01`;
+  return {
+    from,
+    to: `${anchor.slice(0, 4)}-12-31`,
+    buckets: Array.from({ length: 12 }, (_, i) => ({ from: addMonths(from, i), to: monthEnd(addMonths(from, i)) })),
+  };
+}
+
+/** Anchor of the previous (dir = -1) or next (+1) period of the same kind. */
+export function shiftPeriod(kind, anchor, dir) {
+  if (kind === 'settimana') return addDays(anchor, 7 * dir);
+  return addMonths(anchor, dir * ({ mese: 1, '6mesi': 6 }[kind] ?? 12));
+}
+
+/** Per bucket: habit completion (day % for single days) and mean recorded mood; future buckets are empty. */
+export function bucketStats(doc, buckets, today) {
+  const habits = activeHabits(doc);
+  return buckets.map(({ from, to }) => {
+    if (from > today) return { from, to, completion: null, mood: null, n: 0 };
+    const end = to < today ? to : today;
+    const moods = [];
+    for (const k of days(from, end)) {
+      const m = moodOf(doc, k);
+      if (m) moods.push(m.mood);
+    }
+    const completion = from === to ? dayPercent(doc, from) : periodPercent(doc, habits, from, end, today);
+    return { from, to, completion, mood: mean(moods), n: moods.length };
+  });
+}
+
+/** For each mood level 1..7: completion of every day recorded at that level, and their mean. */
+export function moodByLevel(doc, from, to) {
+  const levels = Array.from({ length: 7 }, (_, i) => ({ level: i + 1, values: [], avg: null }));
+  for (const k of days(from, to)) {
+    const m = moodOf(doc, k);
+    const p = dayPercent(doc, k);
+    if (m && p != null) levels[m.mood - 1].values.push(p);
+  }
+  for (const l of levels) l.avg = mean(l.values);
+  return levels;
+}
+
 // ---- Backup ------------------------------------------------------------
 
 const KEY_RE = /^\d{4}-\d{2}-\d{2}$/;

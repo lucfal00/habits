@@ -317,3 +317,8 @@ details .rows li { padding-left: 0; padding-right: 0; }
 .mood-compare { margin: 0 0 10px; }
 .mood-sub { margin: 10px 0 6px; font-size: .82rem; }
 .today-btn { border-radius: 999px; border-color: var(--accent); color: var(--accent); white-space: nowrap; }
+.period-seg { margin-bottom: 10px; }
+.period-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 12px; }
+.period-nav b { font-size: 1.05rem; }
+.chart-sub { margin: 6px 0 0; font-size: .82rem; color: var(--muted); }
+.chart-note { margin: -4px 0 8px; font-size: .82rem; }

@@ -200,6 +200,42 @@ test('moodBand and moodStats', () => {
   assert.deepEqual(s.feelings[0], ['Felicità', 2]);
 });
 
+test('periodRange / shiftPeriod: complete calendar periods', () => {
+  const w = L.periodRange('settimana', '2026-10-28');
+  assert.deepEqual([w.from, w.to, w.buckets.length], ['2026-10-26', '2026-11-01', 7]);
+  const m = L.periodRange('mese', '2026-02-10');
+  assert.deepEqual([m.from, m.to, m.buckets.length], ['2026-02-01', '2026-02-28', 28]);
+  const y = L.periodRange('anno', '2026-10-28');
+  assert.deepEqual([y.buckets.length, y.buckets[0].from, y.buckets[11].to], [12, '2026-01-01', '2026-12-31']);
+  const s = L.periodRange('6mesi', '2026-10-28');
+  assert.deepEqual([s.from, s.to, s.buckets[0].from, s.buckets.at(-1).to], ['2026-05-01', '2026-10-31', '2026-05-01', '2026-10-31']);
+  assert.equal(L.shiftPeriod('settimana', '2026-10-28', -1), '2026-10-21');
+  assert.equal(L.shiftPeriod('mese', '2026-10-28', 1), '2026-11-01');
+  assert.equal(L.shiftPeriod('anno', '2026-10-28', -1), '2025-10-01');
+});
+
+test('bucketStats: completion and mean mood per bucket, future empty', () => {
+  const h = habit({ start: '2026-10-19' });
+  const d = docWith([h], { a: mark(['2026-10-20', '2026-10-21', '2026-10-26', '2026-10-27']) });
+  d.journal = {
+    '2026-10-20': { mood: 6, t: 1 },
+    '2026-10-22': { mood: 2, t: 1 },
+    '2026-10-26': { mood: 7, t: 1 },
+    '2026-10-27': { mood: 0, t: 2 },                       // cleared: ignored
+  };
+  const week = L.bucketStats(d, L.periodRange('settimana', '2026-10-28').buckets, '2026-10-28');
+  assert.deepEqual(week.slice(0, 4).map((b) => [b.completion, b.mood]), [[1, 7], [1, null], [0, null], [null, null]]);
+  const weeks = L.bucketStats(d, [{ from: '2026-10-19', to: '2026-10-25' }], '2026-10-28');
+  assert.deepEqual([weeks[0].mood, weeks[0].n], [4, 2]);
+  assert.equal(weeks[0].completion, 2 / 7);
+  const lv = L.moodByLevel(d, '2026-10-19', '2026-10-27');
+  assert.equal(lv.length, 7);
+  assert.deepEqual(lv[5].values, [1]);                    // level 6 on 20th: done
+  assert.deepEqual(lv[1].values, [0]);                    // level 2 on 22nd: not done
+  assert.equal(lv[6].avg, 1);                             // level 7 on 26th: done
+  assert.equal(lv[3].avg, null);
+});
+
 test('stepOf and nudge: custom +/- step for quantity habits', () => {
   assert.equal(L.stepOf(habit()), 1);
   assert.equal(L.stepOf(habit({ type: 'quantity', target: 2 })), 1);
