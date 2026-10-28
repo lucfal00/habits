@@ -54,8 +54,8 @@ function notifySection(doc) {
     ${device}
     ${note(pushMsg)}
     <div class="remind-rows">
-      ${remindRow('sleep', 'Sonno · la mattina', r.sleep)}
-      ${remindRow('mood', 'Umore · la sera', r.mood)}
+      ${remindRow('sleep', 'Sonno', r.sleep)}
+      ${remindRow('mood', 'Umore', r.mood)}
       <div class="remind-row">
         <label class="switch"><input type="checkbox" name="r-weekly" ${r.weekly ? 'checked' : ''}><span></span></label>
         <span>Riepilogo della settimana</span><small>domenica ${WEEKLY_TIME}</small>
