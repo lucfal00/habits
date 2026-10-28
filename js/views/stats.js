@@ -21,6 +21,18 @@ const EFFECT = {
   hours: { span: 1, unit: ' h', count: 'notti', intro: 'Ore dormite la notte dopo i giorni in cui completi l’abitudine, rispetto a quando non la completi.' },
   mood: { span: 1.5, unit: '', count: 'giorni', intro: 'Umore nei giorni in cui completi l’abitudine, rispetto a quando non la completi.' },
 };
+const wide = matchMedia('(min-width: 1000px)');   // two columns (style.css)
+let refreshStats = null;
+let resizeTimer = 0;
+// Column widths change with the window: refill the rows (only on wide screens, not on every mobile URL-bar resize).
+addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    if (wide.matches && document.querySelector('.stats-grid')) refreshStats?.();
+  }, 200);
+});
+wide.addEventListener('change', () => document.querySelector('.stats-grid') && refreshStats?.());
+
 const fmt1 = (n) => n.toLocaleString('it-IT', { maximumFractionDigits: 1 });
 const signed = (n) => {
   const r = Math.round(n * 10) / 10;
@@ -55,7 +67,7 @@ function describe(kind, buckets) {
 
 const last30 = (doc, h, today) => periodPercent(doc, [h], addDays(today, -29), today, today);
 
-function moodSection(doc, kind, r, stats, labels, today) {
+function moodSection(doc, kind, r, stats, labels, today, grow) {
   const end = r.to < today ? r.to : today;
   const s = moodStats(doc, r.from, end);
   if (!s.days) {
@@ -83,22 +95,25 @@ function moodSection(doc, kind, r, stats, labels, today) {
   const levels = moodByLevel(doc, r.from, end);
   const enough = levels.reduce((n, l) => n + l.values.length, 0) >= 2;
   const top = (list) => list.slice(0, 4).map(([n, c]) => `<span class="chip static">${esc(n)} <small>×${c}</small></span>`).join('');
-  return `<section class="card"><h2>Umore</h2>
+  const moodAria = 'Completamento medio delle abitudini per livello di umore';
+  grow.mood = (h) => moodDots(moodPts, 'Umore nel periodo', { height: h });
+  grow.moodhab = (h) => moodCorrelation(levels, MOOD_LABELS, moodAria, h);
+  return `<section class="card" data-grow="mood"><h2>Umore</h2>
       ${moodDots(moodPts, 'Umore nel periodo')}
       <p class="chart-sub">Abitudini completate</p>
       ${habitBars(habitPts, 'Abitudini completate nel periodo')}
       ${compare ? `<p class="mood-compare">${compare}</p>` : ''}
     </section>
-    <section class="card"><h2>Umore e abitudini</h2>
+    <section class="card" data-grow="moodhab"><h2>Umore e abitudini</h2>
       ${enough ? `<p class="muted chart-note">Ogni puntino tenue è un giorno; quello pieno è la media per livello di umore.</p>
-        ${moodCorrelation(levels, MOOD_LABELS, 'Completamento medio delle abitudini per livello di umore')}`
+        ${moodCorrelation(levels, MOOD_LABELS, moodAria)}`
     : '<p class="muted">Servono almeno due giorni con umore registrato per confrontarli.</p>'}
       ${s.feelings.length ? `<p class="muted mood-sub">Emozioni più frequenti</p><div class="chips">${top(s.feelings)}</div>` : ''}
       ${s.factors.length ? `<p class="muted mood-sub">Cosa influisce di più</p><div class="chips">${top(s.factors)}</div>` : ''}
     </section>`;
 }
 
-function sleepSection(kind, doc, r, stats, labels, today) {
+function sleepSection(kind, doc, r, stats, labels, today, grow) {
   const end = r.to < today ? r.to : today;
   const [all] = bucketStats(doc, [{ from: r.from, to: end }], today);
   if (!all.nights) {
@@ -121,22 +136,25 @@ function sleepSection(kind, doc, r, stats, labels, today) {
   }));
   const avg = [`<b>${SLEEP_LABELS[Math.round(all.sleep) - 1]}</b>`, all.hours == null ? '' : `<b>${fmt1(all.hours)} h</b>`]
     .filter(Boolean).join(' · ');
-  return `<section class="card"><h2>Sonno</h2>
+  grow.sleep = (h) => sleepDots(quality, 'Qualità del sonno nel periodo', { withLabels: all.hours == null, height: h });
+  return `<section class="card" data-grow="sleep"><h2>Sonno</h2>
       <p class="mood-compare">In media: ${avg} (${nights(all.nights)})</p>
       ${sleepDots(quality, 'Qualità del sonno nel periodo', { withLabels: all.hours == null })}
       ${all.hours == null ? '' : `<p class="chart-sub">Ore dormite</p>${hoursBars(hours, 'Ore dormite nel periodo')}`}
     </section>
-    ${sleepHabitsCard(doc, r.from, end)}`;
+    ${sleepHabitsCard(doc, r.from, end, grow)}`;
 }
 
 /** Each night against the habits of the day before: do better days come before better nights? */
-function sleepHabitsCard(doc, from, to) {
+function sleepHabitsCard(doc, from, to, grow) {
   const levels = sleepByLevel(doc, from, to);
   const enough = levels.reduce((n, l) => n + l.values.length, 0) >= 2;
-  return `<section class="card"><h2>Sonno e abitudini</h2>
+  const aria = 'Abitudini completate il giorno prima, per qualità del sonno';
+  grow.sleephab = (h) => sleepCorrelation(levels, SLEEP_LABELS, aria, h);
+  return `<section class="card" data-grow="sleephab"><h2>Sonno e abitudini</h2>
       ${enough ? `<p class="muted chart-note">Ogni puntino tenue è una notte, con le abitudini completate il giorno prima;
         quello pieno è la media per livello di sonno.</p>
-        ${sleepCorrelation(levels, SLEEP_LABELS, 'Abitudini completate il giorno prima, per qualità del sonno')}`
+        ${sleepCorrelation(levels, SLEEP_LABELS, aria)}`
     : '<p class="muted">Servono almeno due notti registrate per confrontarle con le abitudini del giorno prima.</p>'}
     </section>`;
 }
@@ -153,7 +171,7 @@ function effectsSection(kind, doc, r, today) {
     ? effectBars(rows, { span: e.span, value: (d) => signed(d) + e.unit, tip })
     : `<p class="muted">Servono almeno 3 giorni in cui completi un’abitudine e 3 in cui no, con
       ${effect === 'mood' ? 'l’umore' : 'il sonno'} registrato.${kind === 'settimana' ? ' Prova Mese o 6 mesi.' : ''}</p>`;
-  return `<section class="card"><h2>Cosa ti fa stare meglio</h2>
+  return `<section class="card st-effects"><h2>Cosa ti fa stare meglio</h2>
       <div class="seg effect-seg">${seg}</div>
       <p class="muted chart-note">${e.intro}</p>
       ${body}
@@ -185,6 +203,7 @@ function overview(el, doc, today, refresh) {
       <span class="stat-meta">🔥 ${currentStreak(doc, h, today)} ${unit}<br>record ${bestStreak(doc, h, today)}</span></a></li>`;
   }).join('');
 
+  const grow = {};                        // card → (height) => its main chart, taller
   el.innerHTML = `
     <header class="top"><h1>Statistiche</h1></header>
     <div class="seg period-seg">${seg}</div>
@@ -197,9 +216,9 @@ function overview(el, doc, today, refresh) {
     <section class="card"><h2>Completamento</h2>
       ${lineChart(trend, 'var(--accent)', 'Percentuale di abitudini completate nel periodo', { shade: true })}
     </section>
-    <section class="card"><h2>Ultimi 12 mesi</h2>${heatmap((k) => dayPercent(doc, k), 'var(--accent)', today)}</section>
-    ${moodSection(doc, period, r, stats, labels, today)}
-    ${sleepSection(period, doc, r, stats, labels, today)}
+    <section class="card" data-grow="heat"><h2>Ultimi 12 mesi</h2>${heatmap((k) => dayPercent(doc, k), 'var(--accent)', today)}</section>
+    ${moodSection(doc, period, r, stats, labels, today, grow)}
+    ${sleepSection(period, doc, r, stats, labels, today, grow)}
     ${effectsSection(period, doc, r, today)}
     <div class="st-habits"><h2 class="list-title">Per abitudine</h2>
     <ul class="card list rows">${rows}</ul></div>
@@ -222,7 +241,31 @@ function overview(el, doc, today, refresh) {
     anchor = shiftPeriod(period, at, act === 'prev' ? -1 : 1);
     refresh();
   };
+  refreshStats = refresh;
+  fillRows(el, grow);
   scrollHeatmaps(el);
+}
+
+/** Wide screens: the shorter card of each row grows its main chart until it ends level with its neighbour. */
+function fillRows(el, grow) {
+  if (!wide.matches) return;
+  for (const card of el.querySelectorAll('.stats-grid > [data-grow]')) {
+    const svg = card.querySelector('svg.chart');
+    const last = card.lastElementChild;
+    if (!svg || !last) continue;
+    const cs = getComputedStyle(card);
+    const end = last.getBoundingClientRect().bottom + parseFloat(getComputedStyle(last).marginBottom);
+    const slack = card.getBoundingClientRect().bottom - parseFloat(cs.paddingBottom) - parseFloat(cs.borderBottomWidth) - end;
+    if (slack < 6) continue;
+    const box = svg.getBoundingClientRect();
+    if (card.dataset.grow === 'heat') {                // bigger squares (fewer weeks in view, the rest scrolls)
+      svg.style.height = `${box.height + slack}px`;
+      svg.style.width = 'auto';
+      continue;
+    }
+    const vb = svg.viewBox.baseVal;
+    svg.outerHTML = grow[card.dataset.grow](vb.height + (slack * vb.width) / box.width);
+  }
 }
 
 function detail(el, doc, h, today) {

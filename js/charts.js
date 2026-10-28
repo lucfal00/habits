@@ -170,8 +170,8 @@ function levelBands(levels, y, color) {
 }
 
 /** points: [{ mood: null | 1..7 (may be fractional), tip }]. A strip per mood level in the background. */
-export function moodDots(points, ariaLabel) {
-  const H = 150;
+export function moodDots(points, ariaLabel, { height = 150 } = {}) {
+  const H = height;
   const T = 8;
   const B = 6;
   const ih = H - T - B;
@@ -223,8 +223,8 @@ export function habitBars(points, ariaLabel) {
  * levels: [{ level, values: [0..1], avg }] → every day / night as a faint dot, the mean per level highlighted.
  * names: tooltip name per level; color(level); axis: [[index, text, anchor]]; unit: [singular, plural].
  */
-function levelCorrelation(levels, { names, color, axis, unit }, ariaLabel) {
-  const H = 170;
+function levelCorrelation(levels, { names, color, axis, unit, height = 170 }, ariaLabel) {
+  const H = height;
   const T = 10;
   const B = 24;
   const ih = H - T - B;
@@ -252,23 +252,23 @@ function levelCorrelation(levels, { names, color, axis, unit }, ariaLabel) {
   return `<svg class="chart" viewBox="0 0 ${SLOT.W} ${H}" role="img" aria-label="${esc(ariaLabel)}">${grid}${faint}${path}${means}${xl}</svg>`;
 }
 
-export const moodCorrelation = (levels, names, ariaLabel) => levelCorrelation(levels, {
-  names, color: moodColor, unit: ['giorno', 'giorni'],
+export const moodCorrelation = (levels, names, ariaLabel, height) => levelCorrelation(levels, {
+  names, color: moodColor, unit: ['giorno', 'giorni'], height,
   axis: [[0, 'Spiacevole', 'start'], [3, 'Neutro', 'middle'], [6, 'Piacevole', 'end']],
 }, ariaLabel);
 
 /** Like moodCorrelation, one slot per sleep level; values are the previous day's habit completion. */
-export const sleepCorrelation = (levels, names, ariaLabel) => levelCorrelation(levels, {
-  names, color: sleepColor, unit: ['notte', 'notti'],
+export const sleepCorrelation = (levels, names, ariaLabel, height) => levelCorrelation(levels, {
+  names, color: sleepColor, unit: ['notte', 'notti'], height,
   axis: [[0, 'Pessimo', 'start'], [2, 'Discreto', 'middle'], [4, 'Ottimo', 'end']],
 }, ariaLabel);
 
 // ---- Sleep: quality dots + hours bars, same slots as the mood charts ------
 
 /** points: [{ sleep: null | 1..5 (may be fractional), label, tip }]; withLabels when no hours chart follows. */
-export function sleepDots(points, ariaLabel, { withLabels = false } = {}) {
+export function sleepDots(points, ariaLabel, { withLabels = false, height } = {}) {
   const B = withLabels ? 24 : 6;
-  const H = 120 + B;
+  const H = height ?? 120 + B;
   const T = 8;
   const ih = H - T - B;
   const { slot, x } = slots(points.length);

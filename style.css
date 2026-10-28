@@ -248,7 +248,8 @@ details .rows li { padding-left: 0; padding-right: 0; }
 .chart .grid { stroke: var(--line); stroke-width: 1; }
 .chart .target { stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 4 4; }
 .chart .hit { fill: transparent; pointer-events: all; }
-.heat-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; }
+.heat-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px;
+  scrollbar-width: thin; scrollbar-color: var(--track) transparent; }
 .heatmap { width: auto; max-width: none; }
 .heat-legend { display: flex; align-items: center; justify-content: flex-end; gap: 3px; font-size: .75rem; color: var(--muted); margin-top: 6px; }
 .heat-legend i { display: inline-block; width: 11px; height: 11px; border-radius: 3px; }
@@ -360,5 +361,10 @@ details .rows li { padding-left: 0; padding-right: 0; }
   .stats-grid > .card, .st-habits .card { margin: 0; }
   .stats-grid > .st-wide { grid-column: 1 / -1; }
   .st-habits .list-title { margin-top: 0; }
+  .stats-grid > .st-effects, .stats-grid > .st-habits { grid-column: 1 / -1; }     /* lists: a full row each */
+  .st-effects .effects li, .st-effects .eff-axis { grid-template-columns: minmax(0, 240px) minmax(0, 1fr) 4em; }
+  .st-habits .rows { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; }
+  .st-habits .rows li:nth-child(2) { border-top: 0; }
+  .st-effects .effect-seg { max-width: 420px; }
 }
 
