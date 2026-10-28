@@ -1,6 +1,6 @@
 // Offline support. Pages: network first (a new version shows on the next launch), cache when offline.
 // Other files: answer from cache, refresh the cache in the background.
-const CACHE = 'habits-v15';
+const CACHE = 'habits-v16';
 const FILES = [
   './', './index.html', './style.css', './manifest.webmanifest',
   './js/app.js', './js/store.js', './js/logic.js', './js/charts.js', './js/ui.js', './js/crypto.js', './js/sync.js', './js/mood.js',
@@ -20,7 +20,9 @@ self.addEventListener('install', (e) => {
 
 self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys()
-    .then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== NOTIFY).map((k) => caches.delete(k))))
+    // Same origin as the other apps on lucfal00.github.io: only Habits' own old caches are ours to delete.
+    .then((keys) => Promise.all(keys.filter((k) => k.startsWith('habits-') && k !== CACHE && k !== NOTIFY)
+      .map((k) => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
 
