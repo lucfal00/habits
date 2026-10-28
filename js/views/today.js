@@ -94,7 +94,7 @@ export function render(el, { doc, today, refresh }) {
     <header class="top">
       <button class="icon-btn" data-act="prev" aria-label="Giorno precedente">‹</button>
       <div class="grow"><h1>${title}</h1><small>${fmtDay(day)}</small></div>
-      ${day !== today ? '<button class="btn small today-btn" data-act="today" aria-label="Torna a oggi">↩ Oggi</button>' : ''}
+      ${day !== today ? '<button class="btn small today-btn" data-act="today" aria-label="Torna a oggi">Oggi</button>' : ''}
       <button class="icon-btn" data-act="next" aria-label="Giorno successivo" ${day >= today ? 'disabled' : ''}>›</button>
     </header>
     ${vacation ? `<div class="card notice vacation"><p>🏖️ In vacanza fino a ${fmtDay(vacation).toLowerCase()}: le serie sono al sicuro.</p>
