@@ -86,7 +86,7 @@ async function readRemote(api, gistId, key, wrongKeyMsg) {
 
 const remoteIsBehind = (remote, local) => {
   const r = mergeDocs(remote, local);
-  return r.habits + r.entries + r.journal + r.sleep > 0;
+  return r.habits + r.entries + r.journal + r.sleep + r.reminders > 0;
 };
 
 /** Link this device: join the existing sync gist (merging data) or create it. */

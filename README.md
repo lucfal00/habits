@@ -67,10 +67,13 @@ Prima collega la sincronizzazione (o esporta un backup).
 
 ## 6. Costi e limiti
 
-- **Costi:** nessuno. GitHub Pages e Gist sono gratuiti; l'app non usa server né servizi a pagamento.
+- **Costi:** nessuno. GitHub Pages, Gist e il piano gratuito di Cloudflare (promemoria) sono gratuiti.
 - **Token GitHub:** è una chiave d'accesso, non un credito che si consuma. Il limite è 5.000 richieste/ora; l'app ne usa 2–3 per sincronizzazione.
 - **Dati:** stanno sui dispositivi. Eliminare l'app o i dati del browser li cancella, salvo sincronizzazione o backup.
-- **Niente promemoria/notifiche** (non disponibili offline su iPhone).
+- **Promemoria:** servono un account Cloudflare gratuito e una configurazione una tantum (`npm run notifiche`):
+  un piccolo servizio (`worker/`) manda le notifiche all'ora giusta. Conosce solo orari, identificativi anonimi
+  delle abitudini e se oggi sono fatte; i nomi e il testo restano sul dispositivo. Su iPhone servono iOS 16.4+ e
+  l'app aggiunta alla schermata Home. Se segni un'abitudine offline può arrivare un promemoria già superato.
 - **Dipendenza da GitHub:** se un giorno cambiasse le condizioni gratuite, l'app installata continua a funzionare offline
   e i file si possono pubblicare altrove (Netlify, Cloudflare Pages): sono file statici.
 

@@ -381,6 +381,13 @@ function validJournalDay(j) {
     && strings(j.feelings) && strings(j.factors) && (j.note === undefined || typeof j.note === 'string');
 }
 
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+/** "HH:MM", 24 h. */
+export const validTime = (t) => typeof t === 'string' && TIME_RE.test(t);
+const offOrTime = (t) => t === undefined || t === null || validTime(t);
+const validReminders = (r) => !!r && typeof r === 'object' && offOrTime(r.sleep) && offOrTime(r.mood)
+  && (r.weekly === undefined || typeof r.weekly === 'boolean');
+
 const validSleepDay = (s) => !!s && typeof s === 'object' && Number.isInteger(s.q) && s.q >= 0 && s.q <= 5
   && (s.h === undefined || (Number.isFinite(s.h) && s.h >= 0 && s.h <= 24));
 
@@ -389,6 +396,7 @@ function validHabit(h) {
   if (h.type !== 'check' && !(h.type === 'quantity' && h.target > 0)) return false;
   if (h.step !== undefined && !(h.step > 0)) return false;
   if (h.pauses !== undefined && !(Array.isArray(h.pauses) && h.pauses.every(validPause))) return false;
+  if (!offOrTime(h.remind)) return false;
   if (typeof h.start !== 'string' || !KEY_RE.test(h.start)) return false;
   const f = h.freq;
   if (!f) return false;
@@ -406,6 +414,7 @@ export function validateDoc(d) {
   if (!isObj(d.entries)) return false;
   if (d.journal !== undefined && !(isObj(d.journal)
     && Object.entries(d.journal).every(([k, j]) => KEY_RE.test(k) && validJournalDay(j)))) return false;
+  if (d.reminders !== undefined && !validReminders(d.reminders)) return false;
   if (d.sleep !== undefined && !(isObj(d.sleep)
     && Object.entries(d.sleep).every(([k, s]) => KEY_RE.test(k) && validSleepDay(s)))) return false;
   return Object.entries(d.entries).every(([k, row]) => KEY_RE.test(k) && isObj(row)
@@ -454,5 +463,10 @@ export function mergeDocs(local, incoming) {
     }
   }
   doc.settings.lastBackup = Math.max(doc.settings.lastBackup || 0, incoming.settings?.lastBackup || 0);
-  return { doc, habits, entries, journal, sleep };
+  let reminders = 0;
+  if (incoming.reminders && (incoming.reminders.t ?? 0) > (doc.reminders?.t ?? 0)) {
+    doc.reminders = incoming.reminders;
+    reminders = 1;
+  }
+  return { doc, habits, entries, journal, sleep, reminders };
 }

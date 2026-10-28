@@ -2,9 +2,11 @@
 // Emits 'change' after data mutations and 'sync' when sync status or the banner changes.
 import { emptyDoc, validateDoc, mergeDocs, activeHabits, todayKey, addDays } from './logic.js';
 import { connect, syncOnce } from './sync.js';
+import { reminderSettings } from './remind.js';
 
 const KEY = 'habits.v1';
 const SYNC_KEY = 'habits.sync';
+const PUSH_KEY = 'habits.push';            // device only: { device, on }
 const bus = new EventTarget();
 let doc = emptyDoc();
 let notice = '';          // banner message
@@ -182,6 +184,28 @@ export function clearSleep(key) {
   save();
 }
 
+// ---- Reminders -----------------------------------------------------------
+
+/** Synced: sleep / mood times ("HH:MM" or null = off), weekly summary on/off. */
+export function setReminders(patch) {
+  doc.reminders = { ...reminderSettings(doc), ...patch, t: Date.now() };
+  save();
+}
+
+export function getPushPrefs() {
+  try {
+    return JSON.parse(localStorage.getItem(PUSH_KEY)) || {};
+  } catch {
+    return {};
+  }
+}
+
+export function setPushPrefs(p) {
+  try {
+    localStorage.setItem(PUSH_KEY, JSON.stringify(p));
+  } catch { /* notifications still work for this session */ }
+}
+
 export function setSetting(k, v) {
   doc.settings[k] = v;
   persist();                                      // device-local: nothing to upload
@@ -229,6 +253,9 @@ export async function importBackup(file) {
 
 export const getSync = () => ({ connected: !!syncCfg, ...sync });
 
+/** The GitHub token also authorises calls to the reminders service. */
+export const getSyncToken = () => syncCfg?.token ?? null;
+
 function setSync(state, message = '', at = sync.at) {
   sync = { state, message, at };
   emit('sync');
@@ -244,7 +271,7 @@ function storeSyncCfg() {
 /** Keep anything edited while a network round trip was in flight (newest wins). */
 function adopt(merged) {
   const r = mergeDocs(doc, merged);
-  if (r.habits + r.entries + r.journal + r.sleep) {
+  if (r.habits + r.entries + r.journal + r.sleep + r.reminders) {
     doc = r.doc;
     persist();
   }

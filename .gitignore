@@ -1,2 +1,5 @@
 .claude/
 node_modules/
+worker/.vapid.json
+worker/wrangler.toml
+worker/.wrangler/

@@ -1,15 +1,16 @@
 // Offline support. Pages: network first (a new version shows on the next launch), cache when offline.
 // Other files: answer from cache, refresh the cache in the background.
-const CACHE = 'habits-v13';
+const CACHE = 'habits-v14';
 const FILES = [
   './', './index.html', './style.css', './manifest.webmanifest',
   './js/app.js', './js/store.js', './js/logic.js', './js/charts.js', './js/ui.js', './js/crypto.js', './js/sync.js', './js/mood.js',
-  './js/sleep.js', './js/anim.js',
+  './js/sleep.js', './js/anim.js', './js/remind.js', './js/push.js', './js/push-config.js',
   './js/views/today.js', './js/views/habits.js', './js/views/stats.js', './js/views/settings.js', './js/views/mood.js', './js/views/sleep.js',
   './icons/habits-v3.svg', './icons/habits-v3-192.png', './icons/habits-v3-512.png',
   './icons/habits-v3-maskable-512.png', './icons/habits-v3-apple-180.png',
 ];
 const PAGE_TIMEOUT_MS = 3000;
+const NOTIFY = 'habits-notify';             // habit names + week summary written by the app (js/push.js)
 
 self.addEventListener('install', (e) => {
   // 'reload' bypasses the HTTP cache (GitHub Pages sends max-age=600) so a new version precaches fresh files.
@@ -19,7 +20,7 @@ self.addEventListener('install', (e) => {
 
 self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys()
-    .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+    .then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== NOTIFY).map((k) => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
 
@@ -58,3 +59,45 @@ self.addEventListener('fetch', (e) => {
     return net;
   }));
 });
+
+// ---- Notifications -------------------------------------------------------
+// The reminders service sends only { kind, id, date, week }: the text comes from the copy the app keeps here.
+async function notifyText(msg) {
+  let m = {};
+  try {
+    m = await (await (await caches.open(NOTIFY)).match('./notify.json')).json();
+  } catch { /* not written yet: generic text */ }
+  if (msg.kind === 'habit') return [m.names?.[msg.id] || 'Un’abitudine', 'Non ancora fatta oggi.', './#oggi'];
+  if (msg.kind === 'sleep') return ['Sonno', 'Com’è andata la notte?', `./#sonno/${msg.date || ''}`];
+  if (msg.kind === 'mood') return ['Umore', 'Com’è andata la giornata?', `./#umore/${msg.date || ''}`];
+  if (msg.kind === 'weekly') {
+    return ['La tua settimana', m.week === msg.week && m.summary ? m.summary : 'Guarda com’è andata la settimana.', './#stats'];
+  }
+  if (msg.kind === 'test') return ['Notifiche attive', 'Da ora Habits ti ricorda quello che manca.', './#impostazioni'];
+  return ['Habits', 'Hai un promemoria.', './#oggi'];
+}
+
+self.addEventListener('push', (e) => {
+  let msg = {};
+  try {
+    msg = e.data ? e.data.json() : {};
+  } catch { /* unreadable payload: generic notification */ }
+  e.waitUntil(notifyText(msg).then(([title, body, url]) => self.registration.showNotification(title, {
+    body,
+    icon: './icons/habits-v3-192.png',
+    tag: `${msg.kind}-${msg.id || ''}`,
+    data: { url: new URL(url, self.registration.scope).href },
+  })));
+});
+
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const url = e.notification.data?.url || self.registration.scope;
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+    const win = list[0];
+    if (!win) return self.clients.openWindow(url);
+    win.postMessage({ type: 'open', url });
+    return win.focus();
+  }));
+});
+

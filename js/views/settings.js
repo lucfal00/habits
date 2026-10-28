@@ -1,8 +1,11 @@
-// "Impostazioni": theme, sync and backup.
+// "Impostazioni": theme, vacation, notifications, sync and backup.
 import {
   setSetting, exportBackup, importBackup, getSync, connectSync, disconnectSync, runSync, startVacation, endVacation,
+  getSyncToken, setReminders,
 } from '../store.js';
 import { vacationOn, addDays } from '../logic.js';
+import { reminderSettings, DEFAULTS, WEEKLY_TIME } from '../remind.js';
+import * as push from '../push.js';
 import { esc, fmtDay } from '../ui.js';
 
 let vacMsg = null;
@@ -23,6 +26,43 @@ function vacationSection(doc, today) {
     </div>
     ${vacMsg ? `<p class="msg err" role="alert">${esc(vacMsg)}</p>` : ''}
     <button class="btn" data-act="vac-start">Inizia vacanza</button>
+  </section>`;
+}
+
+let pushMsg = null;
+let pushBusy = false;
+
+function remindRow(id, label, time) {
+  return `<div class="remind-row">
+    <label class="switch"><input type="checkbox" name="r-${id}" ${time ? 'checked' : ''}><span></span></label>
+    <span>${label}</span>
+    <input type="time" name="r-${id}-time" value="${time || DEFAULTS[id]}" ${time ? '' : 'disabled'} aria-label="Ora ${label}">
+  </div>`;
+}
+
+function notifySection(doc) {
+  if (!push.configured()) return '';
+  const r = reminderSettings(doc);
+  const support = push.support();
+  let device;
+  if (support === 'home') device = '<p class="muted">Su iPhone le notifiche arrivano solo all’app aggiunta alla schermata Home: apri Habits dalla sua icona.</p>';
+  else if (support === 'no') device = '<p class="muted">Questo browser non supporta le notifiche.</p>';
+  else if (!getSync().connected) device = '<p class="muted">Per le notifiche serve la sincronizzazione collegata (qui sotto).</p>';
+  else if (push.isOn()) device = `<p>Attive su questo dispositivo.</p><button class="btn" data-act="push-off" ${pushBusy ? 'disabled' : ''}>Disattiva</button>`;
+  else device = `<button class="btn primary" data-act="push-on" ${pushBusy ? 'disabled' : ''}>${pushBusy ? 'Attivo…' : 'Attiva su questo dispositivo'}</button>`;
+  return `<section class="card settings"><h2>🔔 Notifiche</h2>
+    ${device}
+    ${note(pushMsg)}
+    <div class="remind-rows">
+      ${remindRow('sleep', 'Sonno · la mattina', r.sleep)}
+      ${remindRow('mood', 'Umore · la sera', r.mood)}
+      <div class="remind-row">
+        <label class="switch"><input type="checkbox" name="r-weekly" ${r.weekly ? 'checked' : ''}><span></span></label>
+        <span>Riepilogo della settimana</span><small>domenica ${WEEKLY_TIME}</small>
+      </div>
+    </div>
+    <p class="muted">Arrivano solo se quel giorno non l’hai ancora registrato. Per le abitudini: Modifica abitudine → Promemoria.
+      Gli orari valgono su tutti i dispositivi.</p>
   </section>`;
 }
 
@@ -83,6 +123,7 @@ export function render(el, { doc, today, refresh }) {
       <div class="seg">${opt('auto', 'Automatico')}${opt('light', 'Chiaro')}${opt('dark', 'Scuro')}</div>
     </section>
     ${vacationSection(doc, today)}
+    ${notifySection(doc)}
     ${syncSection()}
     <section class="card settings"><h2>Backup</h2>
       <p>Ultimo backup: <b>${last ? fmtDate(last) : 'mai'}</b></p>
@@ -137,6 +178,20 @@ export function render(el, { doc, today, refresh }) {
       else refresh();
     }
     if (act === 'vac-end') endVacation(today);
+    if (act === 'push-on' || act === 'push-off') {
+      pushBusy = true;
+      pushMsg = null;
+      const run = act === 'push-on' ? push.enable(getSyncToken(), doc) : push.disable(getSyncToken());
+      refresh();
+      try {
+        await run;
+        pushMsg = act === 'push-on' ? { text: 'Attivate: tra pochi secondi arriva una notifica di prova.' } : null;
+      } catch (err) {
+        pushMsg = { text: err.message || 'Non è stato possibile.', err: true };
+      }
+      pushBusy = false;
+      refresh();
+    }
     if (act === 'sync-now') {
       syncMsg = null;
       runSync();
@@ -156,6 +211,18 @@ export function render(el, { doc, today, refresh }) {
   };
 
   el.onchange = async (e) => {
+    const name = e.target.name || '';
+    if (name === 'r-weekly') {
+      setReminders({ weekly: e.target.checked });
+      return;
+    }
+    const m = /^r-(sleep|mood)(-time)?$/.exec(name);
+    if (m) {
+      const box = el.querySelector(`[name="r-${m[1]}"]`);
+      const time = el.querySelector(`[name="r-${m[1]}-time"]`).value || DEFAULTS[m[1]];
+      setReminders({ [m[1]]: box.checked ? time : null });
+      return;
+    }
     if (e.target.name === 'theme') {
       setSetting('theme', e.target.value);
       return;

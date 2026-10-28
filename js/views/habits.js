@@ -1,6 +1,7 @@
 // "Abitudini": list, reorder, create/edit/archive/delete.
 import { activeHabits, stepOf, addDays } from '../logic.js';
 import { createHabit, updateHabit, moveHabit, addPause, removePause } from '../store.js';
+import { configured as pushConfigured } from '../push.js';
 import { esc, safeColor, freqLabel, fmtNum, fmtShort, parseNum, COLORS, DAY_LETTERS, DAY_SHORT } from '../ui.js';
 
 const EMOJIS = ['💧', '🏃', '📚', '🧘', '💪', '🥗', '😴', '✍️', '🎸', '🚭', '🧹', '💊'];
@@ -119,6 +120,9 @@ function renderForm(el, doc, h, today) {
         <label class="field if-weekly">Volte a settimana<input name="times" type="number" min="1" max="7" inputmode="numeric" value="${times}"></label>
       </fieldset>
       <label class="field">Data di inizio<input name="start" type="date" max="${today}" value="${esc(v.start)}"></label>
+      ${pushConfigured() ? `<label class="field">Promemoria <small>facoltativo</small>
+        <input name="remind" type="time" value="${esc(v.remind || '')}"></label>
+        <small class="field-hint">Ti avvisa a quest’ora, solo se quel giorno non l’hai ancora fatta. Attiva le notifiche in Impostazioni.</small>` : ''}
       <p class="error" role="alert" hidden></p>
       <button class="btn primary block" type="submit">Salva</button>
       ${h ? `<div class="danger-zone">
@@ -184,6 +188,7 @@ function renderForm(el, doc, h, today) {
       unit: type === 'quantity' ? f.get('unit').trim() : '',
       freq,
       start,
+      ...(pushConfigured() ? { remind: /^\d{2}:\d{2}/.exec(f.get('remind') || '')?.[0] || null } : {}),
     };
     location.hash = '#abitudini';
     if (h) updateHabit(h.id, fields);

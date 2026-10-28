@@ -8,6 +8,7 @@ import * as stats from './views/stats.js';
 import * as settings from './views/settings.js';
 import * as mood from './views/mood.js';
 import * as sleep from './views/sleep.js';
+import * as push from './push.js';
 
 const views = { oggi: today, abitudini: habits, stats, impostazioni: settings, umore: mood, sonno: sleep };
 const TAB_OF = { umore: 'oggi', sonno: 'oggi' };                    // screens without their own tab
@@ -58,8 +59,17 @@ function render() {
   }
 }
 
+let pushTimer = 0;
+/** Reminders: tell the service a few seconds after the last change (grouped), on launch and on return. */
+function pushLater(ms = 5000) {
+  if (!push.configured()) return;
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(() => push.refresh(store.getDoc(), store.getSyncToken()), ms);
+}
+
 store.load();
 store.onChange(render);
+store.onChange(() => pushLater());
 // Sync status only redraws the screen that shows it, so background syncs never reset an open form.
 store.onSync(() => {
   updateBanner();
@@ -76,9 +86,15 @@ document.addEventListener('visibilitychange', () => {
   }
   if (todayKey() !== shownDay) render();            // after midnight (not on every switch: keeps open forms)
   store.runSync();
+  pushLater(1000);
 });
 render();
 store.runSync();
+pushLater(1500);
+// A tapped notification while the app is open: go to its screen.
+navigator.serviceWorker?.addEventListener('message', (e) => {
+  if (e.data?.type === 'open') location.hash = new URL(e.data.url).hash;
+});
 
 navigator.storage?.persist?.();
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
