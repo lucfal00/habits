@@ -2,6 +2,8 @@
 import { activeHabits, stepOf, addDays } from '../logic.js';
 import { createHabit, updateHabit, moveHabit, addPause, removePause } from '../store.js';
 import { configured as pushConfigured } from '../push.js';
+
+const DEFAULT_REMIND = '21:00';
 import { esc, safeColor, freqLabel, fmtNum, fmtShort, parseNum, COLORS, DAY_LETTERS, DAY_SHORT } from '../ui.js';
 
 const EMOJIS = ['💧', '🏃', '📚', '🧘', '💪', '🥗', '😴', '✍️', '🎸', '🚭', '🧹', '💊'];
@@ -120,9 +122,14 @@ function renderForm(el, doc, h, today) {
         <label class="field if-weekly">Volte a settimana<input name="times" type="number" min="1" max="7" inputmode="numeric" value="${times}"></label>
       </fieldset>
       <label class="field">Data di inizio<input name="start" type="date" max="${today}" value="${esc(v.start)}"></label>
-      ${pushConfigured() ? `<label class="field">Promemoria <small>facoltativo</small>
-        <input name="remind" type="time" value="${esc(v.remind || '')}"></label>
-        <small class="field-hint">Ti avvisa a quest’ora, solo se quel giorno non l’hai ancora fatta. Attiva le notifiche in Impostazioni.</small>` : ''}
+      ${pushConfigured() ? `<fieldset><legend>Promemoria</legend>
+        <div class="remind-row">
+          <label class="switch"><input type="checkbox" name="remind-on" ${v.remind ? 'checked' : ''} aria-label="Promemoria"><span></span></label>
+          <span>Ricordamelo alle</span>
+          <input type="time" name="remind" value="${esc(v.remind || DEFAULT_REMIND)}" ${v.remind ? '' : 'disabled'} aria-label="Ora del promemoria">
+        </div>
+        <small>Solo nei giorni in cui non l’hai ancora fatta.</small>
+      </fieldset>` : ''}
       <p class="error" role="alert" hidden></p>
       <button class="btn primary block" type="submit">Salva</button>
       ${h ? `<div class="danger-zone">
@@ -136,6 +143,7 @@ function renderForm(el, doc, h, today) {
   const error = form.querySelector('.error');
 
   form.onchange = (e) => {
+    if (e.target.name === 'remind-on') form.remind.disabled = !e.target.checked;
     if (e.target.name === 'type') form.dataset.type = e.target.value;
     if (e.target.name === 'kind') form.dataset.kind = e.target.value;
   };
@@ -188,7 +196,7 @@ function renderForm(el, doc, h, today) {
       unit: type === 'quantity' ? f.get('unit').trim() : '',
       freq,
       start,
-      ...(pushConfigured() ? { remind: /^\d{2}:\d{2}/.exec(f.get('remind') || '')?.[0] || null } : {}),
+      ...(pushConfigured() ? { remind: (f.get('remind-on') && /^\d{2}:\d{2}/.exec(f.get('remind') || '')?.[0]) || null } : {}),
     };
     location.hash = '#abitudini';
     if (h) updateHabit(h.id, fields);
