@@ -314,7 +314,8 @@ test('habitEffects: habit day vs next night (sleep, hours), same day (mood), 3+3
   }
   const sleep = L.habitEffects(d, '2026-10-01', '2026-10-08', 'sleep');
   assert.equal(sleep.length, 1);                                // 'b' has only 2 days with
-  assert.equal(sleep[0].habit.id, 'r');
+  assert.equal(sleep[0].item.id, 'r');
+  assert.equal(sleep[0].kind, 'habit');
   assert.equal(sleep[0].nWith, 4);
   assert.equal(sleep[0].nWithout, 3);                           // 5, 6, 7 → nights 6, 7, 8; 8 skipped
   assert.equal(sleep[0].with, 5);
@@ -352,4 +353,31 @@ test('habit note; future start dates count from the start', () => {
   assert.equal(L.isScheduled(d.habits[0], '2026-10-31'), false);
   assert.equal(L.isScheduled(d.habits[0], '2026-11-01'), true);
   assert.equal(L.currentStreak(d, d.habits[0], '2026-10-30'), 0);
+});
+
+test('events: effects on mood (same day) and sleep (night after), validation, merge', () => {
+  const d = { ...L.emptyDoc(), habits: [] };
+  d.events = [{ id: 'e', name: 'Amici', icon: '', since: '2026-10-02', order: 0, archived: false, deleted: false, updatedAt: 1 }];
+  const met = ['2026-10-02', '2026-10-04', '2026-10-06'];
+  for (const k of met) d.happened[k] = { e: { on: 1, t: 1 } };
+  d.happened['2026-10-08'] = { e: { on: 0, t: 2 } };                // unmarked again: counts as without
+  for (let i = 1; i <= 9; i++) {
+    const k = `2026-10-0${i}`;
+    d.journal[k] = { mood: met.includes(k) ? 6 : 4, feelings: [], factors: [], note: '', t: 1 };
+    d.sleep[k] = { q: met.includes(L.addDays(k, -1)) ? 5 : 3, t: 1 };
+  }
+  assert.equal(L.validateDoc(d), true);
+  const mood = L.habitEffects(d, '2026-10-01', '2026-10-09', 'mood');
+  assert.equal(mood[0].kind, 'event');
+  assert.equal(mood[0].nWith, 3);
+  assert.equal(mood[0].nWithout, 5);                                // 3, 5, 7, 8, 9; 1 Oct is before `since`
+  assert.equal(mood[0].diff, 2);
+  assert.equal(L.habitEffects(d, '2026-10-01', '2026-10-08', 'sleep')[0].diff, 2);
+  assert.deepEqual(L.eventsOn(d, '2026-10-04').map((e) => e.id), ['e']);
+  assert.equal(L.validateDoc({ ...d, happened: { '2026-10-02': { e: { on: 2 } } } }), false);
+  const newer = { ...L.emptyDoc(), events: [{ ...d.events[0], name: 'Amiche', updatedAt: 5 }], happened: { '2026-10-02': { e: { on: 0, t: 9 } } } };
+  const r = L.mergeDocs(d, newer);
+  assert.equal(r.events, 2);
+  assert.equal(r.doc.events[0].name, 'Amiche');
+  assert.equal(L.happenedOn(r.doc, '2026-10-02', 'e'), false);
 });

@@ -1,10 +1,11 @@
 // "Abitudini": list, reorder, create/edit/archive/delete.
-import { activeHabits, stepOf, addDays } from '../logic.js';
-import { createHabit, updateHabit, moveHabit, addPause, removePause } from '../store.js';
+import { activeHabits, activeEvents, stepOf, addDays } from '../logic.js';
+import {
+  createHabit, updateHabit, moveHabit, addPause, removePause, createEvent, updateEvent,
+} from '../store.js';
 import { configured as pushConfigured } from '../push.js';
 import { esc, safeColor, freqLabel, fmtNum, fmtShort, parseNum, COLORS, DAY_LETTERS, DAY_SHORT } from '../ui.js';
 
-const EMOJIS = ['💧', '🏃', '📚', '🧘', '💪', '🥗', '😴', '✍️', '🎸', '🚭', '🧹', '💊'];
 const KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const DEFAULT_REMIND = '21:00';
 const NOTE_MAX = 200;
@@ -25,7 +26,7 @@ function row(h, i, n, today) {
   const until = pausedUntil(h, today);
   return `<li data-id="${esc(h.id)}">
     <a class="row" href="#abitudini/${encodeURIComponent(h.id)}">
-      <span class="badge" style="--c:${safeColor(h.color)}">${esc(h.emoji || '•')}</span>
+      <span class="badge" style="--c:${safeColor(h.color)}">${esc(h.emoji || '')}</span>
       <span><b>${esc(h.name)}</b><small>${until ? `⏸ In pausa fino al ${fmtShort(until)}` : `${esc(freqLabel(h))} · ${typeLabel(h)}`}</small></span>
     </a>${order}
   </li>`;
@@ -41,12 +42,71 @@ function renderList(el, doc, today) {
     ? `<ul class="card list rows">${active.map((h, i) => row(h, i, active.length, today)).join('')}</ul>`
     : '<div class="card empty"><p class="muted">Nessuna abitudine attiva.</p></div>'}
     ${archived.length ? `<details class="card"><summary>Archiviate (${archived.length})</summary>
-      <ul class="rows">${archived.map((h) => row(h, 0, 0, today)).join('')}</ul></details>` : ''}`;
+      <ul class="rows">${archived.map((h) => row(h, 0, 0, today)).join('')}</ul></details>` : ''}
+    ${eventsList(doc)}`;
 
   el.onclick = (e) => {
     const b = e.target.closest('button[data-act]');
     if (!b) return;
     moveHabit(b.closest('[data-id]').dataset.id, b.dataset.act === 'up' ? -1 : 1);
+  };
+}
+
+const eventRow = (e) => `<li><a class="row" href="#abitudini/evento/${encodeURIComponent(e.id)}">
+    <span class="badge ev-badge">${esc(e.icon || '')}</span>
+    <span><b>${esc(e.name)}</b><small>Evento · dal ${fmtShort(e.since)}</small></span></a></li>`;
+
+function eventsList(doc) {
+  const active = activeEvents(doc);
+  const archived = (doc.events || []).filter((e) => e.archived && !e.deleted);
+  return `<header class="top events-head"><div class="grow"><h2>Eventi</h2>
+      <small>Cose che capitano ogni tanto: in Statistiche vedi come vanno con umore e sonno.</small></div>
+      <a class="btn" href="#abitudini/evento">+ Nuovo</a></header>
+    ${active.length ? `<ul class="card list rows">${active.map(eventRow).join('')}</ul>`
+    : '<div class="card empty"><p class="muted">Nessun evento. Prova con Tè, Amici o Visita medica.</p></div>'}
+    ${archived.length ? `<details class="card"><summary>Eventi archiviati (${archived.length})</summary>
+      <ul class="rows">${archived.map(eventRow).join('')}</ul></details>` : ''}`;
+}
+
+function renderEventForm(el, e) {
+  el.innerHTML = `
+    <header class="top"><a class="back" href="#abitudini">‹ Abitudini</a></header>
+    <h1 style="margin-bottom:16px">${e ? 'Modifica evento' : 'Nuovo evento'}</h1>
+    <form class="card form" novalidate>
+      <label class="field">Nome<input name="name" maxlength="40" value="${esc(e?.name || '')}" placeholder="Es. Visto amici" autocomplete="off"></label>
+      <label class="field">Icona <small class="muted">facoltativa</small>
+        <input name="icon" class="icon-input" maxlength="8" value="${esc(e?.icon || '')}" autocomplete="off" aria-label="Icona"></label>
+      <p class="error" role="alert" hidden></p>
+      <button class="btn primary block" type="submit">Salva</button>
+      ${e ? `<div class="danger-zone">
+        <button class="btn" type="button" data-act="archive">${e.archived ? 'Ripristina' : 'Archivia'}</button>
+        <button class="btn danger" type="button" data-act="delete">Elimina</button></div>` : ''}
+    </form>`;
+  const form = el.querySelector('form');
+  form.onclick = (ev) => {
+    const act = ev.target.closest('button[data-act]')?.dataset.act;
+    if (act === 'archive') {
+      updateEvent(e.id, { archived: !e.archived });
+      location.hash = '#abitudini';
+    }
+    if (act === 'delete' && confirm(`Eliminare "${e.name}"? Il suo storico non sarà più visibile.`)) {
+      updateEvent(e.id, { deleted: true });
+      location.hash = '#abitudini';
+    }
+  };
+  form.onsubmit = (ev) => {
+    ev.preventDefault();
+    const name = form.name.value.trim();
+    const icon = form.icon.value.trim();
+    if (!name) {
+      const error = form.querySelector('.error');
+      error.textContent = 'Inserisci un nome.';
+      error.hidden = false;
+      return;
+    }
+    location.hash = '#abitudini';
+    if (e) updateEvent(e.id, { name, icon });
+    else createEvent({ name, icon });
   };
 }
 
@@ -86,7 +146,7 @@ function bindPauseCard(card, h, today) {
 
 function renderForm(el, doc, h, today) {
   const v = h ?? {
-    name: '', emoji: '✅', color: COLORS[doc.habits.length % COLORS.length], type: 'check',
+    name: '', emoji: '', color: COLORS[doc.habits.length % COLORS.length], type: 'check',
     target: '', unit: '', freq: { kind: 'daily' }, start: today,
   };
   const days = v.freq.kind === 'days' ? v.freq.days : [];
@@ -99,10 +159,8 @@ function renderForm(el, doc, h, today) {
     <h1 style="margin-bottom:16px">${h ? 'Modifica abitudine' : 'Nuova abitudine'}</h1>
     <form class="card form" novalidate data-type="${v.type}" data-kind="${v.freq.kind}">
       <label class="field">Nome<input name="name" maxlength="40" value="${esc(v.name)}" placeholder="Es. Leggere" autocomplete="off"></label>
-      <fieldset><legend>Emoji</legend>
-        <div class="emoji-row">${EMOJIS.map((x) => `<button type="button" data-emoji="${x}" aria-label="Usa ${x}">${x}</button>`).join('')}</div>
-        <input name="emoji" maxlength="8" value="${esc(v.emoji)}" aria-label="Emoji personalizzata">
-      </fieldset>
+      <label class="field">Icona <small class="muted">facoltativa</small>
+        <input name="emoji" class="icon-input" maxlength="8" value="${esc(v.emoji)}" autocomplete="off" aria-label="Icona"></label>
       <fieldset><legend>Colore</legend>
         <div class="swatches">${COLORS.map((c, i) => `<label class="pick"><input type="radio" name="color" value="${c}"
           ${c === safeColor(v.color) ? 'checked' : ''} aria-label="Colore ${i + 1}"><span style="--sw:${c}"></span></label>`).join('')}</div>
@@ -153,7 +211,6 @@ function renderForm(el, doc, h, today) {
   form.onclick = (e) => {
     const b = e.target.closest('button[type="button"]');
     if (!b) return;
-    if (b.dataset.emoji) form.emoji.value = b.dataset.emoji;
     if (b.dataset.act === 'archive') {
       updateHabit(h.id, { archived: !h.archived });
       location.hash = '#abitudini';
@@ -190,7 +247,7 @@ function renderForm(el, doc, h, today) {
     const freq = kind === 'days' ? { kind, days: pickedDays } : kind === 'weekly' ? { kind, times: n } : { kind: 'daily' };
     const fields = {
       name,
-      emoji: f.get('emoji').trim() || '✅',
+      emoji: f.get('emoji').trim(),
       color: f.get('color'),
       type,
       target: type === 'quantity' ? target : 1,
@@ -210,6 +267,13 @@ function renderForm(el, doc, h, today) {
 export function render(el, { doc, param, today }) {
   if (!param) {
     renderList(el, doc, today);
+    return;
+  }
+  if (param === 'evento' || param.startsWith('evento/')) {
+    const id = param.slice('evento/'.length);
+    const e = param === 'evento' ? null : (doc.events || []).find((x) => x.id === id && !x.deleted);
+    if (param !== 'evento' && !e) location.hash = '#abitudini';
+    else renderEventForm(el, e);
     return;
   }
   const h = param === 'nuova' ? null : doc.habits.find((x) => x.id === param && !x.deleted);

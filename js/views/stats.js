@@ -3,9 +3,11 @@
 import {
   activeHabits, addDays, fromKey, dayPercent, habitDayFraction, periodPercent, currentStreak, bestStreak, valueOf,
   moodStats, moodByLevel, sleepByLevel, periodRange, shiftPeriod, bucketStats, habitEffects, MOOD_LABELS, SLEEP_LABELS,
+  eventsOn,
 } from '../logic.js';
 import {
   heatmap, lineChart, barChart, moodDots, habitBars, moodCorrelation, sleepDots, hoursBars, effectBars, sleepCorrelation,
+  eventStrip,
 } from '../charts.js';
 import { esc, safeColor, fmtShort, fmtDay, fmtNum, pct, cap, MONTHS, DAY_SHORT } from '../ui.js';
 
@@ -13,13 +15,13 @@ const PERIODS = [['settimana', 'Settimana'], ['mese', 'Mese'], ['6mesi', '6 mesi
 const monthYear = new Intl.DateTimeFormat('it-IT', { month: 'long', year: 'numeric' });
 let period = 'settimana';
 let anchor = null;                        // a day inside the shown period; null = the current one
-let effect = 'sleep';                     // outcome compared in "Cosa ti fa stare meglio"
+let effect = 'mood';                      // outcome compared in "Da cosa dipendono umore e sonno"
 
-const EFFECTS = [['sleep', 'Sonno'], ['hours', 'Ore'], ['mood', 'Umore']];
+const EFFECTS = [['mood', 'Umore'], ['sleep', 'Sonno'], ['hours', 'Ore']];
 const EFFECT = {
-  sleep: { span: 1, unit: '', count: 'notti', intro: 'Qualità del sonno la notte dopo i giorni in cui completi l’abitudine, rispetto a quando non la completi.' },
-  hours: { span: 1, unit: ' h', count: 'notti', intro: 'Ore dormite la notte dopo i giorni in cui completi l’abitudine, rispetto a quando non la completi.' },
-  mood: { span: 1.5, unit: '', count: 'giorni', intro: 'Umore nei giorni in cui completi l’abitudine, rispetto a quando non la completi.' },
+  sleep: { span: 1, unit: '', count: 'notti', intro: 'Qualità del sonno la notte dopo i giorni con l’abitudine fatta o l’evento successo, rispetto ai giorni senza.' },
+  hours: { span: 1, unit: ' h', count: 'notti', intro: 'Ore dormite la notte dopo i giorni con l’abitudine fatta o l’evento successo, rispetto ai giorni senza.' },
+  mood: { span: 1.5, unit: '', count: 'giorni', intro: 'Umore nei giorni con l’abitudine fatta o l’evento successo, rispetto ai giorni senza. In grigio le differenze piccole.' },
 };
 const wide = matchMedia('(min-width: 1000px)');   // two columns (style.css)
 let refreshStats = null;
@@ -98,8 +100,15 @@ function moodSection(doc, kind, r, stats, labels, today, grow) {
   const moodAria = 'Completamento medio delle abitudini per livello di umore';
   grow.mood = (h) => moodDots(moodPts, 'Umore nel periodo', { height: h });
   grow.moodhab = (h) => moodCorrelation(levels, MOOD_LABELS, moodAria, h);
+  const evPts = single ? stats.map((b, i) => {
+    const names = eventsOn(doc, b.from).map((e) => e.name);
+    return { n: names.length, tip: `${labels[i].tip} · ${names.length ? names.join(', ') : 'nessun evento'}` };
+  }) : [];
+  const evStrip = evPts.some((p) => p.n)
+    ? `<p class="chart-sub">Eventi</p>${eventStrip(evPts, 'Giorni con eventi nel periodo')}` : '';
   return `<section class="card" data-grow="mood"><h2>Umore</h2>
       ${moodDots(moodPts, 'Umore nel periodo')}
+      ${evStrip}
       <p class="chart-sub">Abitudini completate</p>
       ${habitBars(habitPts, 'Abitudini completate nel periodo')}
       ${compare ? `<p class="mood-compare">${compare}</p>` : ''}
@@ -165,13 +174,13 @@ function effectsSection(kind, doc, r, today) {
   const rows = habitEffects(doc, r.from, end, effect);
   const seg = EFFECTS.map(([v, label]) => `<label class="pick"><input type="radio" name="effect" value="${v}"
     ${effect === v ? 'checked' : ''}><span>${label}</span></label>`).join('');
-  const tip = (x) => `${effect === 'mood' ? 'Nei giorni' : 'Dopo i giorni'} con ${x.habit.name}: ${fmt1(x.with)}${e.unit}`
+  const tip = (x) => `${effect === 'mood' ? 'Nei giorni' : 'Dopo i giorni'} con ${x.item.name}: ${fmt1(x.with)}${e.unit}`
     + ` (${x.nWith} ${e.count}) · senza: ${fmt1(x.without)}${e.unit} (${x.nWithout} ${e.count})`;
   const body = rows.length
     ? effectBars(rows, { span: e.span, value: (d) => signed(d) + e.unit, tip })
-    : `<p class="muted">Servono almeno 3 giorni in cui completi un’abitudine e 3 in cui no, con
+    : `<p class="muted">Servono almeno 3 giorni con un’abitudine fatta o un evento successo e 3 senza, con
       ${effect === 'mood' ? 'l’umore' : 'il sonno'} registrato.${kind === 'settimana' ? ' Prova Mese o 6 mesi.' : ''}</p>`;
-  return `<section class="card st-effects"><h2>Cosa ti fa stare meglio</h2>
+  return `<section class="card st-effects"><h2>Da cosa dipendono umore e sonno</h2>
       <div class="seg effect-seg">${seg}</div>
       <p class="muted chart-note">${e.intro}</p>
       ${body}
@@ -198,7 +207,7 @@ function overview(el, doc, today, refresh) {
   const rows = habits.map((h) => {
     const unit = h.freq.kind === 'weekly' ? 'sett.' : 'gg';
     return `<li><a class="row" href="#stats/${encodeURIComponent(h.id)}">
-      <span class="badge" style="--c:${safeColor(h.color)}">${esc(h.emoji || '•')}</span>
+      <span class="badge" style="--c:${safeColor(h.color)}">${esc(h.emoji || '')}</span>
       <span style="flex:1"><b>${esc(h.name)}</b><small>30 giorni: ${pct(last30(doc, h, today))}</small></span>
       <span class="stat-meta">🔥 ${currentStreak(doc, h, today)} ${unit}<br>record ${bestStreak(doc, h, today)}</span></a></li>`;
   }).join('');
@@ -285,7 +294,7 @@ function detail(el, doc, h, today) {
   }
   el.innerHTML = `
     <header class="top"><a class="back" href="#stats">‹ Statistiche</a></header>
-    <div class="top"><span class="badge" style="--c:${c}">${esc(h.emoji || '•')}</span>
+    <div class="top"><span class="badge" style="--c:${c}">${esc(h.emoji || '')}</span>
       <div class="grow"><h1>${esc(h.name)}</h1></div></div>
     <div class="tiles">
       <div class="card tile"><b>${cur}</b><small>serie attuale<br>(${unit(cur)})</small></div>

@@ -40,6 +40,8 @@ export function load() {
     d.settings = { theme: 'auto', lastBackup: 0, ...d.settings };
     d.journal ??= {};
     d.sleep ??= {};
+    d.events ??= [];
+    d.happened ??= {};
     doc = d;
   } catch {
     try { localStorage.setItem(KEY + '.corrupt', raw); } catch { /* best effort */ }
@@ -117,6 +119,29 @@ export function setEntry(key, id, v) {
 /** "Salta oggi" on/off for one habit on one day (a skip also clears the value). */
 export function setSkip(key, id, skipped) {
   (doc.entries[key] ??= {})[id] = skipped ? { v: 0, s: 1, t: Date.now() } : { v: 0, t: Date.now() };
+  save();
+}
+
+// ---- Events ----------------------------------------------------------------
+
+export function createEvent({ name, icon }) {
+  const order = Math.max(-1, ...doc.events.map((e) => e.order)) + 1;
+  doc.events.push({
+    id: newId(), name, icon, since: todayKey(), order, archived: false, deleted: false, updatedAt: Date.now(),
+  });
+  save();
+}
+
+export function updateEvent(id, patch) {
+  const e = doc.events.find((x) => x.id === id);
+  if (!e) return;
+  Object.assign(e, patch, { updatedAt: Date.now() });
+  save();
+}
+
+/** Mark an event as happened (or not) on one day. */
+export function setHappened(key, id, on) {
+  (doc.happened[key] ??= {})[id] = { on: on ? 1 : 0, t: Date.now() };
   save();
 }
 
@@ -271,7 +296,7 @@ function storeSyncCfg() {
 /** Keep anything edited while a network round trip was in flight (newest wins). */
 function adopt(merged) {
   const r = mergeDocs(doc, merged);
-  if (r.habits + r.entries + r.journal + r.sleep + r.reminders) {
+  if (r.habits + r.entries + r.journal + r.sleep + r.reminders + r.events) {
     doc = r.doc;
     persist();
   }

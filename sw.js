@@ -1,6 +1,6 @@
 // Offline support. Pages: network first (a new version shows on the next launch), cache when offline.
 // Other files: answer from cache, refresh the cache in the background.
-const CACHE = 'habits-v18';
+const CACHE = 'habits-v19';
 const FILES = [
   './', './index.html', './style.css', './manifest.webmanifest',
   './js/app.js', './js/store.js', './js/logic.js', './js/charts.js', './js/ui.js', './js/crypto.js', './js/sync.js', './js/mood.js',

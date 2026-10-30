@@ -190,6 +190,20 @@ export function moodDots(points, ariaLabel, { height = 150 } = {}) {
     ${levelBands(7, y, moodColor)}${label(1.5, '☹︎')}${label(4, '–')}${label(6.5, '☺︎')}${dots}</svg>`;
 }
 
+/** points: [{ n: events that day, tip }]; one dot per day with events, aligned with moodDots. */
+export function eventStrip(points, ariaLabel) {
+  const H = 22;
+  const { slot, x } = slots(points.length);
+  const r = Math.max(2.5, Math.min(5, slot * 0.3));
+  let dots = '';
+  points.forEach((p, i) => {
+    if (p.n) dots += `<circle cx="${x(i).toFixed(1)}" cy="${H / 2}" r="${(r + Math.min(2, p.n - 1)).toFixed(1)}" style="fill:var(--accent);stroke:var(--card)" stroke-width="1.5"/>`;
+    dots += `<rect class="hit" x="${(x(i) - slot / 2).toFixed(1)}" y="0" width="${slot.toFixed(1)}" height="${H}" data-tip="${esc(p.tip)}"/>`;
+  });
+  return `<svg class="chart ev-strip" viewBox="0 0 ${SLOT.W} ${H}" role="img" aria-label="${esc(ariaLabel)}">
+    <line class="grid" x1="${SLOT.L}" x2="${SLOT.W - SLOT.R}" y1="${H / 2}" y2="${H / 2}"/>${dots}</svg>`;
+}
+
 /** points: [{ completion: null | 0..1, label, tip }]; x labels shown here, under both charts. */
 export function habitBars(points, ariaLabel) {
   const H = 96;
@@ -319,11 +333,12 @@ export function hoursBars(points, ariaLabel) {
 // ---- Habit effects (diverging: better → teal, worse → coral; one shared scale) ----
 
 /** rows: habitEffects() output. span: smallest half-scale, so tiny differences stay small. */
+/** rows: habitEffects() output. Differences under 15 % of span are drawn gray (too small to mean much). */
 export function effectBars(rows, { span, value, tip }) {
   const max = Math.max(span, ...rows.map((r) => Math.abs(r.diff)));
   const items = rows.map((r) => `<li data-tip="${esc(tip(r))}">
-      <span class="eff-name">${esc(r.habit.emoji || '•')} ${esc(r.habit.name)}</span>
-      <span class="eff-bar"><i class="${r.diff >= 0 ? 'up' : 'down'}" style="width:${((Math.abs(r.diff) / max) * 50).toFixed(1)}%"></i></span>
+      <span class="eff-name">${esc(r.item.emoji || r.item.icon || '')} ${esc(r.item.name)}${r.kind === 'event' ? ' <small class="eff-kind" title="Evento">✦</small>' : ''}</span>
+      <span class="eff-bar"><i class="${r.diff >= 0 ? 'up' : 'down'}${Math.abs(r.diff) < span * 0.15 ? ' flat' : ''}" style="width:${((Math.abs(r.diff) / max) * 50).toFixed(1)}%"></i></span>
       <b>${value(r.diff)}</b></li>`).join('');
   return `<div class="eff-axis" aria-hidden="true"><span></span><span><span>peggiora</span><span>migliora</span></span><span></span></div>
     <ul class="effects">${items}</ul>`;

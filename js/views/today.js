@@ -1,9 +1,9 @@
 // "Oggi": log the habits of the selected day, skip / pause handling, sleep and mood cards.
 import {
   activeHabits, isScheduled, isPaused, isSkipped, valueOf, fraction, weekCount, dayPercent, currentStreak,
-  addDays, stepOf, nudge, vacationOn, moodOf, MOOD_LABELS, sleepOf, SLEEP_LABELS,
+  addDays, stepOf, nudge, vacationOn, moodOf, MOOD_LABELS, sleepOf, SLEEP_LABELS, activeEvents, happenedOn,
 } from '../logic.js';
-import { setEntry, setSkip, endVacation, exportBackup, getSync } from '../store.js';
+import { setEntry, setSkip, setHappened, endVacation, exportBackup, getSync } from '../store.js';
 import { ring } from '../charts.js';
 import { animateShapes } from '../anim.js';
 import { esc, safeColor, fmtDay, fmtNum, pct, parseNum } from '../ui.js';
@@ -12,6 +12,7 @@ const WEEK_MS = 7 * 864e5;
 const DAYS_AHEAD = 7;                 // future days can be looked at (and noted), not logged
 let day = null;
 let seenToday = null;
+let eventsOpen = false;
 
 /** Name and subtitle, plus the habit's own note (set in Abitudini) under the card. */
 function infoAndNote(h, small) {
@@ -25,7 +26,7 @@ function card(doc, h, today) {
   if (isSkipped(doc, h, day)) {
     const [info, below] = infoAndNote(h, '⏭ Saltata · la serie è al sicuro');
     return `<li class="habit card skipped" style="--c:${c}" data-id="${esc(h.id)}">
-      <div class="ring-wrap">${ring(0, c, 46, 5)}<span class="emoji">${esc(h.emoji || '•')}</span></div>
+      <div class="ring-wrap">${ring(0, c, 46, 5)}<span class="emoji">${esc(h.emoji || '')}</span></div>
       ${info}
       <button class="btn small" data-act="unskip">Ripristina</button>${below}
     </li>`;
@@ -48,7 +49,7 @@ function card(doc, h, today) {
   const skip = done ? '' : `<button class="skip" data-act="skip" aria-label="Salta ${esc(h.name)} oggi" title="Salta oggi">⏭</button>`;
   const [info, below] = infoAndNote(h, sub.join(' · ') || '&nbsp;');
   return `<li class="habit card${done ? ' done' : ''}" style="--c:${c}" data-id="${esc(h.id)}">
-    <div class="ring-wrap">${ring(f, c, 46, 5)}<span class="emoji">${esc(h.emoji || '•')}</span></div>
+    <div class="ring-wrap">${ring(f, c, 46, 5)}<span class="emoji">${esc(h.emoji || '')}</span></div>
     ${info}
     <div class="controls"${day > today ? ' inert' : ''}>${skip}${control}</div>${below}
   </li>`;
@@ -72,6 +73,26 @@ function journalCards(doc, future) {
       <span class="grow"><b>Umore</b><small>${esc(moodSub)}</small></span>
     </button>
   </div>`;
+}
+
+/** Habit-sized box above the habits; tap to open the chips of every event. */
+function eventsCard(doc) {
+  const list = activeEvents(doc);
+  const label = (e) => `${e.icon ? `${e.icon} ` : ''}${e.name}`;
+  const on = list.filter((e) => happenedOn(doc, day, e.id));
+  const summary = on.length ? on.map(label).join(' · ')
+    : list.length ? 'Niente di particolare' : 'Tè, amici, una visita: segna cosa succede';
+  const chips = eventsOpen ? `<div class="ev-chips">${list.map((e) => {
+    const yes = happenedOn(doc, day, e.id);
+    return `<button class="ev-chip${yes ? ' on' : ''}" data-act="event" data-ev="${esc(e.id)}" aria-pressed="${yes}">${esc(label(e))}</button>`;
+  }).join('')}<a class="ev-chip add" href="#abitudini/evento">+ Nuovo</a></div>` : '';
+  return `<section class="card events-card${eventsOpen ? ' open' : ''}">
+    <button class="ev-head" data-act="events" aria-expanded="${eventsOpen}">
+      <span class="ev-icon" aria-hidden="true">✦</span>
+      <span class="grow"><b>Eventi</b><small>${esc(summary)}</small></span>
+      <span class="chev" aria-hidden="true">›</span>
+    </button>${chips}
+  </section>`;
 }
 
 export function render(el, { doc, today, refresh }) {
@@ -127,6 +148,7 @@ export function render(el, { doc, today, refresh }) {
       collega la sincronizzazione o esporta un backup.</p>
       <a class="btn" href="#impostazioni">Impostazioni</a></div>` : ''}
     ${journalCards(doc, future)}
+    ${future ? '' : eventsCard(doc)}
     ${body}
     ${pausedNote}`;
   animateShapes(el);
@@ -139,6 +161,15 @@ export function render(el, { doc, today, refresh }) {
       day = act === 'today' ? today : addDays(day, act === 'prev' ? -1 : 1);
       if (day > addDays(today, DAYS_AHEAD)) day = addDays(today, DAYS_AHEAD);
       refresh();
+      return;
+    }
+    if (act === 'events') {
+      eventsOpen = !eventsOpen;
+      refresh();
+      return;
+    }
+    if (act === 'event') {
+      setHappened(day, b.dataset.ev, !happenedOn(doc, day, b.dataset.ev));
       return;
     }
     if (act === 'mood' || act === 'sleep') {

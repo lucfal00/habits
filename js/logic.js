@@ -47,12 +47,24 @@ function* days(from, to) {
 // ---- Document ----------------------------------------------------------
 
 export function emptyDoc() {
-  return { version: 1, habits: [], entries: {}, journal: {}, sleep: {}, settings: { theme: 'auto', lastBackup: 0 } };
+  return {
+    version: 1, habits: [], entries: {}, journal: {}, sleep: {}, events: [], happened: {},
+    settings: { theme: 'auto', lastBackup: 0 },
+  };
 }
 
 export const isActive = (h) => !h.archived && !h.deleted;
 
 export const activeHabits = (doc) => doc.habits.filter(isActive).sort((a, b) => a.order - b.order);
+
+// ---- Events (sporadic things: tea, friends, bad news) ------------------------
+
+export const activeEvents = (doc) => (doc.events || []).filter(isActive).sort((a, b) => a.order - b.order);
+
+export const happenedOn = (doc, key, id) => doc.happened?.[key]?.[id]?.on === 1;
+
+/** Active events that happened on key, in list order. */
+export const eventsOn = (doc, key) => activeEvents(doc).filter((e) => happenedOn(doc, key, e.id));
 
 export const targetOf = (h) => (h.type === 'quantity' ? h.target : 1);
 
@@ -236,26 +248,34 @@ const OUTCOME = {
 const MIN_DAYS = 3;
 
 /**
- * Per active habit over [from, to]: mean outcome on days it was completed vs days it applied but was not.
- * Skipped, paused and unscheduled days are left out; habits with fewer than 3 days in either group are omitted.
- * Sorted by the size of the difference.
+ * Per active habit and event over [from, to]: mean outcome on days with it vs days without.
+ * Habits: completed vs applied but not completed (skipped, paused, unscheduled days left out).
+ * Events: happened vs not happened, from the day the event was created.
+ * Rows with fewer than 3 days in either group are omitted. Sorted by the size of the difference.
  */
 export function habitEffects(doc, from, to, kind) {
   const outcome = OUTCOME[kind];
   const out = [];
-  for (const h of activeHabits(doc)) {
+  const add = (item, type, split) => {
     const yes = [];
     const no = [];
     for (const k of days(from, to)) {
-      const f = habitDayFraction(doc, h, k);
-      const v = f == null ? undefined : outcome(doc, k);
-      if (Number.isFinite(v)) (f >= 1 ? yes : no).push(v);
+      const side = split(k);
+      const v = side == null ? undefined : outcome(doc, k);
+      if (Number.isFinite(v)) (side ? yes : no).push(v);
     }
-    if (yes.length < MIN_DAYS || no.length < MIN_DAYS) continue;
+    if (yes.length < MIN_DAYS || no.length < MIN_DAYS) return;
     const w = mean(yes);
     const wo = mean(no);
-    out.push({ habit: h, with: w, without: wo, nWith: yes.length, nWithout: no.length, diff: w - wo });
+    out.push({ item, kind: type, with: w, without: wo, nWith: yes.length, nWithout: no.length, diff: w - wo });
+  };
+  for (const h of activeHabits(doc)) {
+    add(h, 'habit', (k) => {
+      const f = habitDayFraction(doc, h, k);
+      return f == null ? null : f >= 1;
+    });
   }
+  for (const e of activeEvents(doc)) add(e, 'event', (k) => (k < e.since ? null : happenedOn(doc, k, e.id)));
   return out.sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
 }
 
@@ -409,6 +429,9 @@ function validHabit(h) {
 
 const isObj = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
 
+const validEvent = (e) => isObj(e) && typeof e.id === 'string' && typeof e.name === 'string'
+  && (e.icon === undefined || typeof e.icon === 'string') && KEY_RE.test(e.since);
+
 export function validateDoc(d) {
   if (!isObj(d) || d.version !== 1) return false;
   if (!Array.isArray(d.habits) || !d.habits.every(validHabit)) return false;
@@ -416,6 +439,9 @@ export function validateDoc(d) {
   if (d.journal !== undefined && !(isObj(d.journal)
     && Object.entries(d.journal).every(([k, j]) => KEY_RE.test(k) && validJournalDay(j)))) return false;
   if (d.reminders !== undefined && !validReminders(d.reminders)) return false;
+  if (d.events !== undefined && !(Array.isArray(d.events) && d.events.every(validEvent))) return false;
+  if (d.happened !== undefined && !(isObj(d.happened) && Object.entries(d.happened).every(([k, row]) => KEY_RE.test(k)
+    && isObj(row) && Object.values(row).every((x) => isObj(x) && (x.on === 0 || x.on === 1))))) return false;
   if (d.sleep !== undefined && !(isObj(d.sleep)
     && Object.entries(d.sleep).every(([k, s]) => KEY_RE.test(k) && validSleepDay(s)))) return false;
   return Object.entries(d.entries).every(([k, row]) => KEY_RE.test(k) && isObj(row)
@@ -463,11 +489,34 @@ export function mergeDocs(local, incoming) {
       sleep++;
     }
   }
+  let events = 0;
+  doc.events ??= [];
+  const evIndex = new Map(doc.events.map((e, i) => [e.id, i]));
+  for (const e of incoming.events || []) {
+    const i = evIndex.get(e.id);
+    if (i === undefined) {
+      doc.events.push(e);
+      events++;
+    } else if ((e.updatedAt ?? 0) > (doc.events[i].updatedAt ?? 0)) {
+      doc.events[i] = e;
+      events++;
+    }
+  }
+  doc.happened ??= {};
+  for (const [day, row] of Object.entries(incoming.happened || {})) {
+    const dst = (doc.happened[day] ??= {});
+    for (const [id, x] of Object.entries(row)) {
+      if (!dst[id] || (x.t ?? 0) > (dst[id].t ?? 0)) {
+        dst[id] = x;
+        events++;
+      }
+    }
+  }
   doc.settings.lastBackup = Math.max(doc.settings.lastBackup || 0, incoming.settings?.lastBackup || 0);
   let reminders = 0;
   if (incoming.reminders && (incoming.reminders.t ?? 0) > (doc.reminders?.t ?? 0)) {
     doc.reminders = incoming.reminders;
     reminders = 1;
   }
-  return { doc, habits, entries, journal, sleep, reminders };
+  return { doc, habits, entries, journal, sleep, reminders, events };
 }

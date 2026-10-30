@@ -364,6 +364,39 @@ details .rows li { padding-left: 0; padding-right: 0; }
 .eff-bar i { position: absolute; top: 0; bottom: 0; border-radius: 6px; }
 .eff-bar i.up { left: 50%; background: #14b8a6; }
 .eff-bar i.down { right: 50%; background: #f43f5e; }
+.eff-bar i.flat { background: var(--muted); opacity: .5; }
+.eff-kind { font-size: .75rem; color: var(--accent); }
+
+/* ---- Events ---------------------------------------------------------------- */
+.events-card { padding: 0; margin-bottom: 10px; overflow: hidden; }
+.ev-head {
+  display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px;
+  border: 0; background: transparent; text-align: left; cursor: pointer;
+}
+.ev-head .grow { flex: 1; min-width: 0; }
+.ev-head b { display: block; }
+.ev-head small { display: block; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ev-icon {
+  width: 46px; height: 46px; border-radius: 50%; flex: none; display: grid; place-items: center;
+  border: 5px solid var(--track); color: var(--accent); font-size: 1.1rem;
+}
+.events-card .chev { color: var(--muted); font-size: 1.3rem; transform: rotate(90deg); transition: transform .2s; }
+.events-card.open .chev { transform: rotate(-90deg); }
+.ev-chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 14px 14px; animation: ev-open .22s ease-out; }
+@keyframes ev-open { from { opacity: 0; transform: translateY(-6px); } }
+.ev-chip {
+  padding: 7px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg);
+  font: inherit; font-size: .9rem; color: var(--text); text-decoration: none; cursor: pointer; transition: background .15s, transform .15s;
+}
+.ev-chip:active { transform: scale(.95); }
+.ev-chip.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.ev-chip.add { border-style: dashed; color: var(--muted); }
+.events-head { margin-top: 22px; }
+.events-head h2 { margin: 0; }
+.events-head small { display: block; color: var(--muted); }
+.ev-badge { --c: var(--accent); }
+.icon-input { max-width: 5.5em; text-align: center; font-size: 1.2rem !important; }
+@media (prefers-reduced-motion: reduce) { .ev-chips { animation: none; } }
 .effects b { text-align: right; font-size: .9rem; font-variant-numeric: tabular-nums; }
 .eff-axis { display: grid; grid-template-columns: minmax(0, 1fr) 46% 3.4em; gap: 8px; margin-bottom: 6px; font-size: .75rem; color: var(--muted); }
 .eff-axis span { display: flex; justify-content: space-between; }
