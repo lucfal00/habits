@@ -48,7 +48,7 @@ function render() {
   });
 
   hideTip();
-  main.onclick = main.onchange = main.oninput = null;   // views re-attach their own
+  main.onclick = main.onchange = main.oninput = main.onkeydown = null;   // views re-attach their own
   shownDay = todayKey();
   views[name].render(main, { doc, param, today: shownDay, refresh: render });
 

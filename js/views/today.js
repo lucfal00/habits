@@ -13,12 +13,15 @@ const DAYS_AHEAD = 7;                 // future days can be looked at (and noted
 let day = null;
 let seenToday = null;
 let eventsOpen = false;
+const notesOpen = new Set();         // habits whose note is shown (tap on the name)
 
 /** Name and subtitle, plus the habit's own note (set in Abitudini) under the card. */
 function infoAndNote(h, small) {
-  const info = `<div class="info"><b>${esc(h.name)}</b><small>${small}</small></div>`;
-  const below = h.note ? `<p class="habit-note">${esc(h.note)}</p>` : '';
-  return [info, below];
+  if (!h.note) return [`<div class="info"><b>${esc(h.name)}</b><small>${small}</small></div>`, ''];
+  const open = notesOpen.has(h.id);
+  const info = `<div class="info" data-act="note" role="button" tabindex="0" aria-expanded="${open}"
+    title="Mostra la nota"><b>${esc(h.name)}<span class="note-mark" aria-label="ha una nota">✎</span></b><small>${small}</small></div>`;
+  return [info, open ? `<p class="habit-note">${esc(h.note)}</p>` : ''];
 }
 
 function card(doc, h, today) {
@@ -187,6 +190,11 @@ export function render(el, { doc, today, refresh }) {
     const id = b.closest('[data-id]')?.dataset.id;
     const h = id && doc.habits.find((x) => x.id === id);
     if (!h) return;
+    if (act === 'note') {
+      if (!notesOpen.delete(id)) notesOpen.add(id);
+      refresh();
+      return;
+    }
     if (day > today) return;
     const v = valueOf(doc, day, id);
     if (act === 'toggle') setEntry(day, id, v >= 1 ? 0 : 1);
@@ -194,6 +202,13 @@ export function render(el, { doc, today, refresh }) {
     if (act === 'dec') setEntry(day, id, nudge(v, stepOf(h), -1));
     if (act === 'skip') setSkip(day, id, true);
     if (act === 'unskip') setSkip(day, id, false);
+  };
+
+  el.onkeydown = (e) => {
+    if (e.target.dataset?.act === 'note' && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      e.target.click();
+    }
   };
 
   el.onchange = (e) => {

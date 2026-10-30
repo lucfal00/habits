@@ -171,6 +171,9 @@ input[type="time"]::-webkit-date-and-time-value { text-align: center; margin: 0;
   padding: 12px 14px; margin-bottom: 10px; transition: background .2s;
 }
 .habit .info { min-width: 0; }
+.habit .info[data-act="note"] { cursor: pointer; }
+.note-mark { color: var(--c); font-weight: 400; font-size: .85em; margin-left: 4px; }
+.habit-note { animation: ev-open .2s ease-out; }
 .habit-note {
   grid-column: 1 / -1; margin: 0; display: flex; gap: 8px; align-items: flex-start;
   padding: 8px 12px; border-radius: 12px; font-size: .86rem; line-height: 1.4; color: var(--muted);
@@ -239,8 +242,17 @@ details .rows li { padding-left: 0; padding-right: 0; }
 .seg .pick input:checked + span { background: var(--card); color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
 .seg .pick input:focus-visible + span, .swatches .pick input:focus-visible + span, .days-row .pick input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
 .swatches, .days-row, .emoji-row { display: flex; flex-wrap: wrap; gap: 8px; }
-.swatches .pick span { display: block; width: 30px; height: 30px; border-radius: 50%; background: var(--sw); cursor: pointer; }
+.form .swatches { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 10px 8px; max-width: 420px; }
+.swatches .pick span { display: block; width: 100%; max-width: 32px; aspect-ratio: 1; border-radius: 50%; background: var(--sw); cursor: pointer; }
 .swatches .pick input:checked + span { box-shadow: 0 0 0 3px var(--card), 0 0 0 5px var(--sw); }
+.swatch-custom > span {
+  display: grid !important; place-items: center; font-weight: 700; font-size: 1.05rem; line-height: 1; color: var(--muted);
+  background: var(--bg) !important; border: 2px dashed var(--line);
+}
+.swatch-custom.set > span { background: var(--sw) !important; border: 0; color: #fff; }
+.swatches .swatch-custom input.color-native {
+  position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0;
+}
 .days-row .pick span {
   display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%;
   border: 1px solid var(--line); font-weight: 700; cursor: pointer;
@@ -437,3 +449,11 @@ details .rows li { padding-left: 0; padding-right: 0; }
 .switch input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
 .form .remind-row { border: 0; padding: 2px 0 6px; }
 
+
+/* ---- Narrow phones (iPhone SE / mini) ---------------------------------------- */
+@media (max-width: 360px) {
+  .seg .pick span { font-size: .78rem; padding: 8px 2px; white-space: nowrap; }
+  .remind-row { gap: 8px; }
+  .remind-row > span { white-space: nowrap; }
+  .remind-row input[type="time"] { width: 5.8em; padding: 6px 4px; }
+}

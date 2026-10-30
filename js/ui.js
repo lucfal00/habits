@@ -1,8 +1,12 @@
 // Formatting and escaping helpers shared by views and charts.
 import { fromKey } from './logic.js';
 
-// Order validated for adjacent-pair separation (dataviz validate_palette.js); identity also carried by emoji + name.
-export const COLORS = ['#6366f1', '#14b8a6', '#f43f5e', '#f59e0b', '#0ea5e9', '#a855f7', '#22c55e', '#f97316'];
+// Hue wheel tuned to the app icons (Habits indigo/orchid, Atlas terracotta, the orange/blue/green/purple tiles);
+// mid lightness so each reads on both themes. Identity is also carried by icon + name. A 20th swatch is custom.
+export const COLORS = [
+  '#6a6cf0', '#8b6cf0', '#b07cf0', '#c98ef4', '#e07ab8', '#e8687a', '#d4683d', '#f08c3a', '#f5a94a', '#e9c25a',
+  '#a9c45a', '#5cb87a', '#2e9e77', '#36b3a8', '#4fb4d8', '#5ba6f5', '#5b7fe8', '#9a8270', '#8a8fa3',
+];
 export const DAY_LETTERS = ['L', 'M', 'M', 'G', 'V', 'S', 'D'];
 export const DAY_SHORT = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
 export const MONTHS = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'];

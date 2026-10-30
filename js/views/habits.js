@@ -149,6 +149,8 @@ function renderForm(el, doc, h, today) {
     name: '', emoji: '', color: COLORS[doc.habits.length % COLORS.length], type: 'check',
     target: '', unit: '', freq: { kind: 'daily' }, start: today,
   };
+  const color = safeColor(v.color).toLowerCase();
+  const custom = !COLORS.includes(color);
   const days = v.freq.kind === 'days' ? v.freq.days : [];
   const times = v.freq.kind === 'weekly' ? v.freq.times : 3;
   const radio = (name, value, label, checked) => `<label class="pick"><input type="radio" name="${name}" value="${value}"
@@ -163,7 +165,12 @@ function renderForm(el, doc, h, today) {
         <input name="emoji" class="icon-input" maxlength="8" value="${esc(v.emoji)}" autocomplete="off" aria-label="Icona"></label>
       <fieldset><legend>Colore</legend>
         <div class="swatches">${COLORS.map((c, i) => `<label class="pick"><input type="radio" name="color" value="${c}"
-          ${c === safeColor(v.color) ? 'checked' : ''} aria-label="Colore ${i + 1}"><span style="--sw:${c}"></span></label>`).join('')}</div>
+          ${c === color ? 'checked' : ''} aria-label="Colore ${i + 1}"><span style="--sw:${c}"></span></label>`).join('')}
+          <span class="pick swatch-custom${custom ? ' set' : ''}" style="--sw:${color}">
+            <input type="radio" name="color" value="${color}" ${custom ? 'checked' : ''} tabindex="-1" aria-hidden="true">
+            <span aria-hidden="true">+</span>
+            <input type="color" class="color-native" value="${color}" aria-label="Colore personalizzato">
+          </span></div>
       </fieldset>
       <fieldset><legend>Tipo</legend>
         <div class="seg">${radio('type', 'check', 'Sì / no', v.type === 'check')}${radio('type', 'quantity', 'Quantità', v.type === 'quantity')}</div>
@@ -180,7 +187,7 @@ function renderForm(el, doc, h, today) {
         <label class="field if-weekly">Volte a settimana<input name="times" type="number" min="1" max="7" inputmode="numeric" value="${times}"></label>
       </fieldset>
       <label class="field">Data di inizio<input name="start" type="date" value="${esc(v.start)}"></label>
-      <label class="field">Nota <small class="muted">facoltativa · la vedi sotto l’abitudine in Oggi</small>
+      <label class="field">Nota <small class="muted">facoltativa · in Oggi la apri toccando il nome</small>
         <textarea name="note" maxlength="${NOTE_MAX}" rows="2" placeholder="Es. 10 minuti di sole appena sveglio">${esc(v.note || '')}</textarea></label>
       ${pushConfigured() ? `<fieldset><legend>Promemoria</legend>
         <div class="remind-row">
@@ -206,6 +213,16 @@ function renderForm(el, doc, h, today) {
     if (e.target.name === 'remind-on') form.remind.disabled = !e.target.checked;
     if (e.target.name === 'type') form.dataset.type = e.target.value;
     if (e.target.name === 'kind') form.dataset.kind = e.target.value;
+  };
+
+  form.oninput = (e) => {
+    if (!e.target.classList.contains('color-native')) return;
+    const box = e.target.closest('.swatch-custom');
+    const radio = box.querySelector('input[type="radio"]');
+    radio.value = e.target.value;
+    radio.checked = true;
+    box.style.setProperty('--sw', e.target.value);
+    box.classList.add('set');
   };
 
   form.onclick = (e) => {
