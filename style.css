@@ -170,13 +170,19 @@ input[type="time"]::-webkit-date-and-time-value { text-align: center; margin: 0;
   display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px;
   padding: 12px 14px; margin-bottom: 10px; transition: background .2s;
 }
-.habit .info { min-width: 0; cursor: pointer; }
-.note-mark { color: var(--muted); font-weight: 400; font-size: .85em; }
-.note-line, .note-edit { grid-column: 1 / -1; margin: 0; }
-.note-line { font-size: .88rem; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; cursor: pointer;
-  border-top: 1px solid var(--line); padding-top: 8px; }
-.note-edit { width: 100%; resize: vertical; min-height: 3.2em; padding: 10px 12px; font: inherit; font-size: 16px; color: var(--text);
-  background: var(--bg); border: 1px solid var(--line); border-radius: 12px; }
+.habit .info { min-width: 0; }
+.habit-note {
+  grid-column: 1 / -1; margin: 0; display: flex; gap: 8px; align-items: flex-start;
+  padding: 8px 12px; border-radius: 12px; font-size: .86rem; line-height: 1.4; color: var(--muted);
+  background: var(--bg); border-left: 3px solid var(--c); white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.habit-note::before { content: "✎"; color: var(--c); flex: none; }
+@supports (background: color-mix(in srgb, red 10%, white)) {
+  .habit-note { background: color-mix(in srgb, var(--c) 9%, var(--bg)); color: color-mix(in srgb, var(--text) 75%, var(--c)); }
+}
+.form textarea { width: 100%; resize: vertical; min-height: 3.2em; padding: 11px 12px; font: inherit; font-size: 16px; font-weight: 400;
+  color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 12px; }
+.form label.field small { font-weight: 400; }
 .habit-list.future .controls { opacity: .4; }
 .mood-card:disabled { opacity: .5; cursor: default; }
 .habit .info b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

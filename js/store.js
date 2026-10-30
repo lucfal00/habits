@@ -109,28 +109,14 @@ export function moveHabit(id, dir) {
 
 // ---- Entries and settings ---------------------------------------------
 
-/** The day's note survives value and skip changes. */
-const keptNote = (key, id) => (doc.entries[key]?.[id]?.n ? { n: doc.entries[key][id].n } : {});
-
 export function setEntry(key, id, v) {
-  (doc.entries[key] ??= {})[id] = { v: Math.max(0, v), ...keptNote(key, id), t: Date.now() };
+  (doc.entries[key] ??= {})[id] = { v: Math.max(0, v), t: Date.now() };
   save();
 }
 
 /** "Salta oggi" on/off for one habit on one day (a skip also clears the value). */
 export function setSkip(key, id, skipped) {
-  (doc.entries[key] ??= {})[id] = { v: 0, ...(skipped ? { s: 1 } : {}), ...keptNote(key, id), t: Date.now() };
-  save();
-}
-
-export const NOTE_MAX = 500;
-
-/** Note of one habit on one day; empty text removes it. */
-export function setNote(key, id, text) {
-  const row = (doc.entries[key] ??= {});
-  const { n: _old, ...rest } = row[id] ?? { v: 0 };
-  const n = String(text).trim().slice(0, NOTE_MAX);
-  row[id] = { ...rest, ...(n ? { n } : {}), t: Date.now() };
+  (doc.entries[key] ??= {})[id] = skipped ? { v: 0, s: 1, t: Date.now() } : { v: 0, t: Date.now() };
   save();
 }
 

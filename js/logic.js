@@ -57,8 +57,6 @@ export const activeHabits = (doc) => doc.habits.filter(isActive).sort((a, b) => 
 export const targetOf = (h) => (h.type === 'quantity' ? h.target : 1);
 
 export const valueOf = (doc, key, id) => doc.entries[key]?.[id]?.v ?? 0;
-/** Free-text note of one habit on one day ('' if none). */
-export const noteOf = (doc, key, id) => doc.entries[key]?.[id]?.n || '';
 
 /** Amount added/removed by the +/− buttons (quantity habits only; default 1). */
 export const stepOf = (h) => (h.type === 'quantity' && h.step > 0 ? h.step : 1);
@@ -399,6 +397,7 @@ function validHabit(h) {
   if (h.step !== undefined && !(h.step > 0)) return false;
   if (h.pauses !== undefined && !(Array.isArray(h.pauses) && h.pauses.every(validPause))) return false;
   if (!offOrTime(h.remind)) return false;
+  if (h.note !== undefined && typeof h.note !== 'string') return false;
   if (typeof h.start !== 'string' || !KEY_RE.test(h.start)) return false;
   const f = h.freq;
   if (!f) return false;

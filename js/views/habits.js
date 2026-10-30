@@ -7,6 +7,7 @@ import { esc, safeColor, freqLabel, fmtNum, fmtShort, parseNum, COLORS, DAY_LETT
 const EMOJIS = ['💧', '🏃', '📚', '🧘', '💪', '🥗', '😴', '✍️', '🎸', '🚭', '🧹', '💊'];
 const KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const DEFAULT_REMIND = '21:00';
+const NOTE_MAX = 200;
 
 const typeLabel = (h) => (h.type === 'quantity' ? `${fmtNum(h.target)} ${esc(h.unit)}` : 'Sì / no');
 
@@ -121,6 +122,8 @@ function renderForm(el, doc, h, today) {
         <label class="field if-weekly">Volte a settimana<input name="times" type="number" min="1" max="7" inputmode="numeric" value="${times}"></label>
       </fieldset>
       <label class="field">Data di inizio<input name="start" type="date" value="${esc(v.start)}"></label>
+      <label class="field">Nota <small class="muted">facoltativa · la vedi sotto l’abitudine in Oggi</small>
+        <textarea name="note" maxlength="${NOTE_MAX}" rows="2" placeholder="Es. 10 minuti di sole appena sveglio">${esc(v.note || '')}</textarea></label>
       ${pushConfigured() ? `<fieldset><legend>Promemoria</legend>
         <div class="remind-row">
           <label class="switch"><input type="checkbox" name="remind-on" ${v.remind ? 'checked' : ''} aria-label="Promemoria"><span></span></label>
@@ -195,6 +198,7 @@ function renderForm(el, doc, h, today) {
       unit: type === 'quantity' ? f.get('unit').trim() : '',
       freq,
       start,
+      note: f.get('note').trim().slice(0, NOTE_MAX),
       ...(pushConfigured() ? { remind: (f.get('remind-on') && /^\d{2}:\d{2}/.exec(f.get('remind') || '')?.[0]) || null } : {}),
     };
     location.hash = '#abitudini';
