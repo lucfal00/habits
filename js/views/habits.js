@@ -2,12 +2,11 @@
 import { activeHabits, stepOf, addDays } from '../logic.js';
 import { createHabit, updateHabit, moveHabit, addPause, removePause } from '../store.js';
 import { configured as pushConfigured } from '../push.js';
-
-const DEFAULT_REMIND = '21:00';
 import { esc, safeColor, freqLabel, fmtNum, fmtShort, parseNum, COLORS, DAY_LETTERS, DAY_SHORT } from '../ui.js';
 
 const EMOJIS = ['💧', '🏃', '📚', '🧘', '💪', '🥗', '😴', '✍️', '🎸', '🚭', '🧹', '💊'];
 const KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
+const DEFAULT_REMIND = '21:00';
 
 const typeLabel = (h) => (h.type === 'quantity' ? `${fmtNum(h.target)} ${esc(h.unit)}` : 'Sì / no');
 
@@ -121,7 +120,7 @@ function renderForm(el, doc, h, today) {
           ${days.includes(i + 1) ? 'checked' : ''} aria-label="${DAY_SHORT[i]}"><span>${d}</span></label>`).join('')}</div>
         <label class="field if-weekly">Volte a settimana<input name="times" type="number" min="1" max="7" inputmode="numeric" value="${times}"></label>
       </fieldset>
-      <label class="field">Data di inizio<input name="start" type="date" max="${today}" value="${esc(v.start)}"></label>
+      <label class="field">Data di inizio<input name="start" type="date" value="${esc(v.start)}"></label>
       ${pushConfigured() ? `<fieldset><legend>Promemoria</legend>
         <div class="remind-row">
           <label class="switch"><input type="checkbox" name="remind-on" ${v.remind ? 'checked' : ''} aria-label="Promemoria"><span></span></label>
@@ -179,7 +178,7 @@ function renderForm(el, doc, h, today) {
     else if (type === 'quantity' && !(step > 0)) msg = 'Il passo dei pulsanti deve essere un numero maggiore di 0.';
     else if (kind === 'days' && !pickedDays.length) msg = 'Scegli almeno un giorno.';
     else if (kind === 'weekly' && !(Number.isInteger(n) && n >= 1 && n <= 7)) msg = 'Le volte a settimana vanno da 1 a 7.';
-    else if (!KEY_RE.test(start) || start > today) msg = 'Data di inizio non valida.';
+    else if (!KEY_RE.test(start)) msg = 'Data di inizio non valida.';
     if (msg) {
       error.textContent = msg;
       error.hidden = false;

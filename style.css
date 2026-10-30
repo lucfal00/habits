@@ -115,6 +115,11 @@ input[type="text"], input[type="date"], input[type="number"], input[type="passwo
   border: 1px solid var(--line); border-radius: 12px;
   background: var(--bg);
 }
+/* iOS Safari draws date/time fields natively: centred text, own height, intrinsic min-width. */
+input[type="date"], input[type="time"] { -webkit-appearance: none; appearance: none; min-width: 0; display: block; }
+input[type="date"] { min-height: 46px; text-align: left; }
+input[type="date"]::-webkit-date-and-time-value { text-align: left; margin: 0; }
+input[type="time"]::-webkit-date-and-time-value { text-align: center; margin: 0; }
 
 /* ---- Banner / tooltip ---------------------------------------------- */
 .banner {
@@ -165,7 +170,15 @@ input[type="text"], input[type="date"], input[type="number"], input[type="passwo
   display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px;
   padding: 12px 14px; margin-bottom: 10px; transition: background .2s;
 }
-.habit .info { min-width: 0; }
+.habit .info { min-width: 0; cursor: pointer; }
+.note-mark { color: var(--muted); font-weight: 400; font-size: .85em; }
+.note-line, .note-edit { grid-column: 1 / -1; margin: 0; }
+.note-line { font-size: .88rem; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; cursor: pointer;
+  border-top: 1px solid var(--line); padding-top: 8px; }
+.note-edit { width: 100%; resize: vertical; min-height: 3.2em; padding: 10px 12px; font: inherit; font-size: 16px; color: var(--text);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 12px; }
+.habit-list.future .controls { opacity: .4; }
+.mood-card:disabled { opacity: .5; cursor: default; }
 .habit .info b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @supports (background: color-mix(in srgb, red 10%, white)) {
   .habit.done { background: color-mix(in srgb, var(--c) 12%, var(--card)); border-color: color-mix(in srgb, var(--c) 30%, var(--line)); }
@@ -228,7 +241,7 @@ details .rows li { padding-left: 0; padding-right: 0; }
 }
 .days-row .pick input:checked + span { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .emoji-row button { width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); font-size: 1.25rem; }
-.two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
 .form[data-type="check"] .if-quantity,
 .form:not([data-kind="days"]) .if-days,
 .form:not([data-kind="weekly"]) .if-weekly { display: none; }
@@ -372,7 +385,7 @@ details .rows li { padding-left: 0; padding-right: 0; }
 .remind-rows { margin: 12px 0 4px; border-top: 1px solid var(--line); }
 .remind-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .remind-row > span { flex: 1; }
-.remind-row input[type="time"] { width: 7.2em; padding: 6px 8px; font: inherit; color: var(--text);
+.remind-row input[type="time"] { width: 7.2em; flex: none; min-height: 36px; padding: 6px 8px; font: inherit; color: var(--text);
   background: var(--bg); border: 1px solid var(--line); border-radius: 10px; }
 .remind-row input[type="time"]:disabled { opacity: .45; }
 .switch { position: relative; width: 44px; height: 26px; flex: none; }

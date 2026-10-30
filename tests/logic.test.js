@@ -344,3 +344,14 @@ test('sleepByLevel: each night with the completion of the day before', () => {
   assert.equal(lv[4].avg, 1);
   assert.equal(lv[0].avg, null);
 });
+
+test('notes per habit and day; future start dates count from the start', () => {
+  const d = { ...L.emptyDoc(), habits: [habit({ start: '2026-11-01' })], entries: { '2026-10-30': { a: { v: 1, n: 'tè verde', t: 1 } } } };
+  assert.equal(L.validateDoc(d), true);
+  assert.equal(L.noteOf(d, '2026-10-30', 'a'), 'tè verde');
+  assert.equal(L.noteOf(d, '2026-10-31', 'a'), '');
+  assert.equal(L.validateDoc({ ...d, entries: { '2026-10-30': { a: { v: 1, n: 5, t: 1 } } } }), false);
+  assert.equal(L.isScheduled(d.habits[0], '2026-10-31'), false);
+  assert.equal(L.isScheduled(d.habits[0], '2026-11-01'), true);
+  assert.equal(L.currentStreak(d, d.habits[0], '2026-10-30'), 0);
+});

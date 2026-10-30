@@ -57,6 +57,8 @@ export const activeHabits = (doc) => doc.habits.filter(isActive).sort((a, b) => 
 export const targetOf = (h) => (h.type === 'quantity' ? h.target : 1);
 
 export const valueOf = (doc, key, id) => doc.entries[key]?.[id]?.v ?? 0;
+/** Free-text note of one habit on one day ('' if none). */
+export const noteOf = (doc, key, id) => doc.entries[key]?.[id]?.n || '';
 
 /** Amount added/removed by the +/− buttons (quantity habits only; default 1). */
 export const stepOf = (h) => (h.type === 'quantity' && h.step > 0 ? h.step : 1);
@@ -418,7 +420,7 @@ export function validateDoc(d) {
   if (d.sleep !== undefined && !(isObj(d.sleep)
     && Object.entries(d.sleep).every(([k, s]) => KEY_RE.test(k) && validSleepDay(s)))) return false;
   return Object.entries(d.entries).every(([k, row]) => KEY_RE.test(k) && isObj(row)
-    && Object.values(row).every((e) => isObj(e) && Number.isFinite(e.v)));
+    && Object.values(row).every((e) => isObj(e) && Number.isFinite(e.v) && (e.n === undefined || typeof e.n === 'string')));
 }
 
 /** Merge incoming into a copy of local: per habit and per (day, habit) the newest wins. */
