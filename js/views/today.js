@@ -90,11 +90,11 @@ function journalCards(doc, future) {
   const moodSub = m ? MOOD_LABELS[m.mood - 1] : 'Com’è andata la giornata?';
   return `<div class="journal-row">
     <button class="card mood-card" data-act="sleep"${future ? ' disabled' : ''}>
-      <canvas data-sleep="${s ? s.q : 0}" width="40" height="40" aria-hidden="true"></canvas>
+      <canvas data-sleep="${s ? s.q : 0}" width="44" height="44" aria-hidden="true"></canvas>
       <span class="grow"><b>Sonno</b><small>${esc(sleepSub)}</small></span>
     </button>
     <button class="card mood-card" data-act="mood"${future ? ' disabled' : ''}>
-      <canvas data-mood="${m ? m.mood : 0}" width="40" height="40" aria-hidden="true"></canvas>
+      <canvas data-mood="${m ? m.mood : 0}" width="44" height="44" aria-hidden="true"></canvas>
       <span class="grow"><b>Umore</b><small>${esc(moodSub)}</small></span>
     </button>
   </div>`;
