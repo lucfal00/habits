@@ -4,10 +4,11 @@ import {
   createHabit, updateHabit, moveHabit, addPause, removePause, createEvent, updateEvent,
 } from '../store.js';
 import { configured as pushConfigured } from '../push.js';
-import { esc, safeColor, freqLabel, fmtNum, fmtShort, parseNum, COLORS, DAY_LETTERS, DAY_SHORT } from '../ui.js';
+import { esc, icon, safeColor, freqLabel, fmtNum, fmtShort, parseNum, COLORS, DAY_LETTERS, DAY_SHORT } from '../ui.js';
 
 const KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const DEFAULT_REMIND = '21:00';
+let reorder = false;                      // "Riordina": arrows instead of chevrons
 const NOTE_MAX = 200;
 
 const typeLabel = (h) => (h.type === 'quantity' ? `${fmtNum(h.target)} ${esc(h.unit)}` : 'Sì / no');
@@ -17,7 +18,7 @@ const pausedUntil = (h, today) => (h.pauses || []).filter((p) => p.from <= today
   .reduce((max, p) => (!max || p.to > max ? p.to : max), null);
 
 function row(h, i, n, today) {
-  const order = n
+  const order = n && reorder
     ? `<span class="order">
         <button data-act="up" aria-label="Sposta su" ${i === 0 ? 'disabled' : ''}>↑</button>
         <button data-act="down" aria-label="Sposta giù" ${i === n - 1 ? 'disabled' : ''}>↓</button>
@@ -27,7 +28,8 @@ function row(h, i, n, today) {
   return `<li data-id="${esc(h.id)}">
     <a class="row" href="#abitudini/${encodeURIComponent(h.id)}">
       <span class="badge" style="--c:${safeColor(h.color)}">${esc(h.emoji || '')}</span>
-      <span><b>${esc(h.name)}</b><small>${until ? `⏸ In pausa fino al ${fmtShort(until)}` : `${esc(freqLabel(h))} · ${typeLabel(h)}`}</small></span>
+      <span class="grow"><b>${esc(h.name)}</b><small>${until ? `In pausa fino al ${fmtShort(until)}` : `${esc(freqLabel(h))} · ${typeLabel(h)}`}</small></span>
+      ${order ? '' : `<span class="dot" style="--c:${safeColor(h.color)}"></span>${icon('right', 'chev')}`}
     </a>${order}
   </li>`;
 }
@@ -41,6 +43,8 @@ function renderList(el, doc, today) {
     ${active.length
     ? `<ul class="card list rows">${active.map((h, i) => row(h, i, active.length, today)).join('')}</ul>`
     : '<div class="card empty"><p class="muted">Nessuna abitudine attiva.</p></div>'}
+    ${active.length > 1 ? `<div class="list-tools"><button class="btn small ghost" data-act="reorder">
+      ${reorder ? 'Fatto' : `${icon('sort')} Riordina`}</button></div>` : ''}
     ${archived.length ? `<details class="card"><summary>Archiviate (${archived.length})</summary>
       <ul class="rows">${archived.map((h) => row(h, 0, 0, today)).join('')}</ul></details>` : ''}
     ${eventsList(doc)}`;
@@ -48,13 +52,18 @@ function renderList(el, doc, today) {
   el.onclick = (e) => {
     const b = e.target.closest('button[data-act]');
     if (!b) return;
+    if (b.dataset.act === 'reorder') {
+      reorder = !reorder;
+      renderList(el, doc, today);
+      return;
+    }
     moveHabit(b.closest('[data-id]').dataset.id, b.dataset.act === 'up' ? -1 : 1);
   };
 }
 
 const eventRow = (e) => `<li><a class="row" href="#abitudini/evento/${encodeURIComponent(e.id)}">
     <span class="badge ev-badge">${esc(e.icon || '')}</span>
-    <span><b>${esc(e.name)}</b><small>Evento · dal ${fmtShort(e.since)}</small></span></a></li>`;
+    <span class="grow"><b>${esc(e.name)}</b><small>Evento · dal ${fmtShort(e.since)}</small></span>${icon('right', 'chev')}</a></li>`;
 
 function eventsList(doc) {
   const active = activeEvents(doc);
@@ -112,9 +121,9 @@ function renderEventForm(el, e) {
 
 function pauseCard(h, today) {
   const items = (h.pauses || []).map((p, i) => [p, i]).filter(([p]) => p.to >= today);
-  return `<section class="card pause-card"><h2>⏸ Pausa</h2>
+  return `<section class="card pause-card"><h2>Pausa</h2>
     <p class="muted">Nei giorni in pausa l’abitudine non conta: niente percentuali e la serie resta intatta.</p>
-    ${items.length ? `<ul class="pause-list">${items.map(([p, i]) => `<li><span>dal ${fmtShort(p.from)} al ${fmtShort(p.to)}${p.vac ? ' · 🏖️ vacanza' : ''}</span>
+    ${items.length ? `<ul class="pause-list">${items.map(([p, i]) => `<li><span>dal ${fmtShort(p.from)} al ${fmtShort(p.to)}${p.vac ? ' · vacanza' : ''}</span>
       <button type="button" class="icon-btn small" data-act="unpause" data-index="${i}" aria-label="Rimuovi pausa">✕</button></li>`).join('')}</ul>` : ''}
     <div class="two">
       <label class="field">Dal<input type="date" name="pfrom" value="${today}"></label>

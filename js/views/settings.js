@@ -13,12 +13,12 @@ let vacMsg = null;
 function vacationSection(doc, today) {
   const until = vacationOn(doc, today);
   if (until) {
-    return `<section class="card settings"><h2>🏖️ Vacanza</h2>
+    return `<section class="card settings"><h2>Vacanza</h2>
       <p>In vacanza fino a <b>${fmtDay(until).toLowerCase()}</b>. Le abitudini sono in pausa e le serie sono al sicuro.</p>
       <button class="btn" data-act="vac-end">Termina la vacanza oggi</button>
     </section>`;
   }
-  return `<section class="card settings"><h2>🏖️ Vacanza</h2>
+  return `<section class="card settings"><h2>Vacanza</h2>
     <p class="muted">Mette in pausa tutte le abitudini per un periodo: niente percentuali e nessuna serie interrotta.</p>
     <div class="two">
       <label class="field">Dal<input type="date" name="vfrom" value="${today}"></label>
@@ -50,7 +50,7 @@ function notifySection(doc) {
   else if (!getSync().connected) device = '<p class="muted">Per le notifiche serve la sincronizzazione collegata (qui sotto).</p>';
   else if (push.isOn()) device = `<p>Attive su questo dispositivo.</p><button class="btn" data-act="push-off" ${pushBusy ? 'disabled' : ''}>Disattiva</button>`;
   else device = `<button class="btn primary" data-act="push-on" ${pushBusy ? 'disabled' : ''}>${pushBusy ? 'Attivo…' : 'Attiva su questo dispositivo'}</button>`;
-  return `<section class="card settings"><h2>🔔 Notifiche</h2>
+  return `<section class="card settings"><h2>Notifiche</h2>
     ${device}
     ${note(pushMsg)}
     <div class="remind-rows">

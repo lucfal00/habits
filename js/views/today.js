@@ -6,7 +6,7 @@ import {
 import { setEntry, setSkip, setHappened, endVacation, exportBackup, getSync } from '../store.js';
 import { ring } from '../charts.js';
 import { animateShapes } from '../anim.js';
-import { esc, safeColor, fmtDay, fmtNum, pct, parseNum } from '../ui.js';
+import { esc, safeColor, fmtDay, fmtNum, pct, parseNum, icon } from '../ui.js';
 
 const WEEK_MS = 7 * 864e5;
 const DAYS_AHEAD = 7;                 // future days can be looked at (and noted), not logged
@@ -20,16 +20,16 @@ function infoAndNote(h, small) {
   if (!h.note) return [`<div class="info"><b>${esc(h.name)}</b><small>${small}</small></div>`, ''];
   const open = notesOpen.has(h.id);
   const info = `<div class="info" data-act="note" role="button" tabindex="0" aria-expanded="${open}"
-    title="Mostra la nota"><b>${esc(h.name)}<span class="note-mark" aria-label="ha una nota">✎</span></b><small>${small}</small></div>`;
+    title="Mostra la nota"><b>${esc(h.name)}${icon('pencil', 'note-mark')}</b><small>${small}</small></div>`;
   return [info, open ? `<p class="habit-note">${esc(h.note)}</p>` : ''];
 }
 
 function card(doc, h, today) {
   const c = safeColor(h.color);
   if (isSkipped(doc, h, day)) {
-    const [info, below] = infoAndNote(h, '⏭ Saltata · la serie è al sicuro');
-    return `<li class="habit card skipped" style="--c:${c}" data-id="${esc(h.id)}">
-      <div class="ring-wrap">${ring(0, c, 46, 5)}<span class="emoji">${esc(h.emoji || '')}</span></div>
+    const [info, below] = infoAndNote(h, 'Saltata · la serie è al sicuro');
+    return `<li class="habit skipped" style="--c:${c}" data-id="${esc(h.id)}">
+      <div class="ring-wrap">${ring(0, c, 40, 3)}<span class="emoji">${esc(h.emoji || '')}</span></div>
       ${info}
       <button class="btn small" data-act="unskip">Ripristina</button>${below}
     </li>`;
@@ -41,18 +41,18 @@ function card(doc, h, today) {
   if (h.type === 'quantity') sub.push(`${fmtNum(v)} / ${fmtNum(h.target)} ${esc(h.unit)}`);
   if (h.freq.kind === 'weekly') sub.push(`${weekCount(doc, h, day)}/${h.freq.times} questa settimana`);
   const streak = currentStreak(doc, h, today);
-  if (streak > 0) sub.push(`🔥 ${streak}`);
+  if (streak > 0) sub.push(`serie ${streak}`);
   const control = h.type === 'check'
-    ? `<button class="check${done ? ' on' : ''}" data-act="toggle" aria-pressed="${done}" aria-label="Segna ${esc(h.name)} come fatta">✓</button>`
+    ? `<button class="check${done ? ' on' : ''}" data-act="toggle" aria-pressed="${done}" aria-label="Segna ${esc(h.name)} come fatta">${icon('check')}</button>`
     : `<div class="stepper">
         <button data-act="dec" aria-label="Diminuisci ${esc(h.name)}">−</button>
         <input type="text" inputmode="decimal" value="${fmtNum(v)}" data-act="set" aria-label="Valore ${esc(h.name)}">
         <button data-act="inc" aria-label="Aumenta ${esc(h.name)}">+</button>
       </div>`;
-  const skip = done ? '' : `<button class="skip" data-act="skip" aria-label="Salta ${esc(h.name)} oggi" title="Salta oggi">⏭</button>`;
+  const skip = done ? '' : `<button class="skip" data-act="skip" aria-label="Salta ${esc(h.name)} oggi" title="Salta oggi">${icon('skip')}</button>`;
   const [info, below] = infoAndNote(h, sub.join(' · ') || '&nbsp;');
-  return `<li class="habit card${done ? ' done' : ''}" style="--c:${c}" data-id="${esc(h.id)}">
-    <div class="ring-wrap">${ring(f, c, 46, 5)}<span class="emoji">${esc(h.emoji || '')}</span></div>
+  return `<li class="habit${done ? ' done' : ''}" style="--c:${c}" data-id="${esc(h.id)}">
+    <div class="ring-wrap">${ring(f, c, 40, 3)}<span class="emoji">${esc(h.emoji || '')}</span></div>
     ${info}
     <div class="controls"${day > today ? ' inert' : ''}>${skip}${control}</div>${below}
   </li>`;
@@ -91,9 +91,9 @@ function eventsCard(doc) {
   }).join('')}<a class="ev-chip add" href="#abitudini/evento">+ Nuovo</a></div>` : '';
   return `<section class="card events-card${eventsOpen ? ' open' : ''}">
     <button class="ev-head" data-act="events" aria-expanded="${eventsOpen}">
-      <span class="ev-icon" aria-hidden="true">✦</span>
+      <span class="ev-icon">${icon('sparkles')}</span>
       <span class="grow"><b>Eventi</b><small>${esc(summary)}</small></span>
-      <span class="chev" aria-hidden="true">›</span>
+      ${icon('down', 'chev')}
     </button>${chips}
   </section>`;
 }
@@ -126,24 +126,25 @@ export function render(el, { doc, today, refresh }) {
     body = `<div class="card empty"><p class="muted">${paused ? 'Tutte le abitudini di questo giorno sono in pausa.' : 'Nessuna abitudine prevista per questo giorno.'}</p></div>`;
   } else {
     body = `<section class="card summary">
-        <div class="ring-wrap">${ring(p ?? 0, 'var(--accent)', 84, 9)}<span class="pct">${pct(p)}</span></div>
+        <div class="ring-wrap">${ring(p ?? 0, 'var(--accent)', 64, 4)}<span class="pct">${pct(p)}</span></div>
         <div><b>${doneCount} di ${daily.length} completate</b>
         <small>${daily.length ? 'abitudini giornaliere di questo giorno' : 'solo abitudini settimanali'}</small></div>
       </section>
       ${future ? '<p class="muted paused-note">Giorno futuro: potrai segnarle quel giorno.</p>' : ''}
-      <ul class="habit-list${future ? ' future' : ''}">${list.map((h) => card(doc, h, today)).join('')}</ul>`;
+      <p class="sec">Abitudini</p>
+      <ul class="card habit-list${future ? ' future' : ''}">${list.map((h) => card(doc, h, today)).join('')}</ul>`;
   }
   const pausedNote = paused && list.length && !vacation
-    ? `<p class="muted paused-note">⏸ ${paused === 1 ? '1 abitudine in pausa' : `${paused} abitudini in pausa`}</p>` : '';
+    ? `<p class="muted paused-note">${paused === 1 ? '1 abitudine in pausa' : `${paused} abitudini in pausa`}</p>` : '';
 
   el.innerHTML = `
     <header class="top">
-      <button class="icon-btn" data-act="prev" aria-label="Giorno precedente">‹</button>
+      <button class="icon-btn" data-act="prev" aria-label="Giorno precedente">${icon('left')}</button>
       <div class="grow"><h1>${title}</h1><small>${fmtDay(day)}</small></div>
       ${day !== today ? '<button class="btn small today-btn" data-act="today" aria-label="Torna a oggi">Oggi</button>' : ''}
-      <button class="icon-btn" data-act="next" aria-label="Giorno successivo" ${day >= addDays(today, DAYS_AHEAD) ? 'disabled' : ''}>›</button>
+      <button class="icon-btn" data-act="next" aria-label="Giorno successivo" ${day >= addDays(today, DAYS_AHEAD) ? 'disabled' : ''}>${icon('right')}</button>
     </header>
-    ${vacation ? `<div class="card notice vacation"><p>🏖️ In vacanza fino a ${fmtDay(vacation).toLowerCase()}: le serie sono al sicuro.</p>
+    ${vacation ? `<div class="card notice vacation"><p>In vacanza fino a ${fmtDay(vacation).toLowerCase()}: le serie sono al sicuro.</p>
       ${day === today ? '<button class="btn" data-act="endvac">Termina</button>' : ''}</div>` : ''}
     ${backupDue && lastBackup ? `<div class="card notice"><p>Non fai un backup da più di 7 giorni.</p>
       <button class="btn" data-act="backup">Esporta</button></div>` : ''}

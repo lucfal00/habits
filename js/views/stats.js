@@ -9,7 +9,7 @@ import {
   heatmap, lineChart, barChart, moodDots, habitBars, moodCorrelation, sleepDots, hoursBars, effectBars, sleepCorrelation,
   eventStrip,
 } from '../charts.js';
-import { esc, safeColor, fmtShort, fmtDay, fmtNum, pct, cap, MONTHS, DAY_SHORT } from '../ui.js';
+import { esc, icon, safeColor, fmtShort, fmtDay, fmtNum, pct, cap, MONTHS, DAY_SHORT } from '../ui.js';
 
 const PERIODS = [['settimana', 'Settimana'], ['mese', 'Mese'], ['6mesi', '6 mesi'], ['anno', 'Anno']];
 const monthYear = new Intl.DateTimeFormat('it-IT', { month: 'long', year: 'numeric' });
@@ -209,7 +209,7 @@ function overview(el, doc, today, refresh) {
     return `<li><a class="row" href="#stats/${encodeURIComponent(h.id)}">
       <span class="badge" style="--c:${safeColor(h.color)}">${esc(h.emoji || '')}</span>
       <span style="flex:1"><b>${esc(h.name)}</b><small>30 giorni: ${pct(last30(doc, h, today))}</small></span>
-      <span class="stat-meta">🔥 ${currentStreak(doc, h, today)} ${unit}<br>record ${bestStreak(doc, h, today)}</span></a></li>`;
+      <span class="stat-meta">serie ${currentStreak(doc, h, today)} ${unit}<br>record ${bestStreak(doc, h, today)}</span></a></li>`;
   }).join('');
 
   const grow = {};                        // card → (height) => its main chart, taller
@@ -217,9 +217,9 @@ function overview(el, doc, today, refresh) {
     <header class="top"><h1>Statistiche</h1></header>
     <div class="seg period-seg">${seg}</div>
     <div class="period-nav">
-      <button class="icon-btn" data-act="prev" aria-label="Periodo precedente">‹</button>
+      <button class="icon-btn" data-act="prev" aria-label="Periodo precedente">${icon('left')}</button>
       <b>${periodTitle(period, r)}</b>
-      <button class="icon-btn" data-act="next" aria-label="Periodo successivo" ${canNext ? '' : 'disabled'}>›</button>
+      <button class="icon-btn" data-act="next" aria-label="Periodo successivo" ${canNext ? '' : 'disabled'}>${icon('right')}</button>
     </div>
     <div class="stats-grid">
     <section class="card"><h2>Completamento</h2>
