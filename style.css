@@ -375,10 +375,10 @@ details .rows li { padding-left: 0; padding-right: 0; }
 .mood-card b { display: block; font-weight: 500; }
 .mood-card .chev { color: var(--muted); font-size: 1.4rem; }
 .journal-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
-.journal-row .mood-card { margin: 0; flex-direction: column; justify-content: flex-start; gap: 8px; padding: 14px 8px 12px; text-align: center; }
-.journal-row .mood-card canvas { width: 52px; height: 52px; }
+.journal-row .mood-card { margin: 0; flex-direction: column; justify-content: flex-start; gap: 4px; padding: 10px 8px 9px; text-align: center; }
+.journal-row .mood-card canvas { width: 40px; height: 40px; }
 .journal-row .mood-card .grow { min-width: 0; }
-.journal-row .mood-card small { display: block; line-height: 1.3; margin-top: 2px; }
+.journal-row .mood-card small { display: block; line-height: 1.3; margin-top: 1px; font-size: .78rem; }
 .mood-head { margin: 0 4px 6px; }
 .mood-head small { display: block; }
 .mood-hero { display: grid; justify-items: center; gap: 10px; margin: 8px 0 18px; }
