@@ -20,6 +20,7 @@ const ICONS = {
   skip: '<path d="M4 5v14l11-7z"/><path d="M19 5v14"/>',
   sparkles: '<path d="M16 18a2 2 0 0 1 2 2a2 2 0 0 1 2-2a2 2 0 0 1-2-2a2 2 0 0 1-2 2zm0-12a2 2 0 0 1 2 2a2 2 0 0 1 2-2a2 2 0 0 1-2-2a2 2 0 0 1-2 2zm-7 12a6 6 0 0 1 6-6a6 6 0 0 1-6-6a6 6 0 0 1-6 6a6 6 0 0 1 6 6z"/>',
   pencil: '<path d="M4 20h4L18.5 9.5a2.83 2.83 0 0 0-4-4L4 16v4"/><path d="M13.5 6.5l4 4"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
   sort: '<path d="M3 9l4-4l4 4M7 5v14M21 15l-4 4l-4-4M17 19V5"/>',
 };
 export const icon = (name, cls = '') => `<svg class="i${cls ? ` ${cls}` : ''}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
