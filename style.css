@@ -7,6 +7,7 @@
   --line: #e7e8ec;
   --track: #e7e8ec;
   --empty: #f0f1f4;
+  --star: #e8a900;
   --accent: #5558d9;                /* white text on it: 5.6:1 */
   --on-accent: #ffffff;
   --good: #2f8f4a;
@@ -25,6 +26,7 @@
     --line: #1f222a;
     --track: #23262e;
     --empty: #171a20;
+    --star: #f5c542;
     --accent: #9a9cf8;
     --on-accent: #0e1014;
     --good: #8edc78;
@@ -42,6 +44,7 @@
   --line: #1f222a;
   --track: #23262e;
   --empty: #171a20;
+  --star: #f5c542;
   --accent: #9a9cf8;
   --on-accent: #0e1014;
   --good: #8edc78;
@@ -379,6 +382,7 @@ details .rows li { padding-left: 0; padding-right: 0; }
 .journal-row .mood-card canvas { width: 44px; height: 44px; }
 .journal-row .mood-card .grow { min-width: 0; }
 .journal-row .mood-card small { display: block; line-height: 1.25; }
+.journal-row .mood-card.empty { background: transparent; border: 1.5px dashed var(--track); }
 .mood-head { margin: 0 4px 6px; }
 .mood-head small { display: block; }
 .mood-hero { display: grid; justify-items: center; gap: 10px; margin: 8px 0 18px; }
@@ -448,6 +452,8 @@ details .rows li { padding-left: 0; padding-right: 0; }
   border: 3px solid var(--track); color: var(--muted); font-size: 1.05rem;
 }
 .ev-head b { font-weight: 500; }
+.ev-icon.on { border-color: var(--star); color: var(--star); }
+.ev-icon.on .i { fill: var(--star); stroke: var(--star); }
 .events-card .chev { color: var(--muted); transition: transform .2s; }
 .events-card.open .chev { transform: rotate(180deg); }
 .ev-chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 14px 14px; animation: ev-open .22s ease-out; }

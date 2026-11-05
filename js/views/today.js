@@ -89,11 +89,11 @@ function journalCards(doc, future) {
     : 'Com’è andata la notte?';
   const moodSub = m ? MOOD_LABELS[m.mood - 1] : 'Com’è andata la giornata?';
   return `<div class="journal-row">
-    <button class="card mood-card" data-act="sleep"${future ? ' disabled' : ''}>
+    <button class="card mood-card${s ? '' : ' empty'}" data-act="sleep"${future ? ' disabled' : ''}>
       <canvas data-sleep="${s ? s.q : 0}" width="44" height="44" aria-hidden="true"></canvas>
       <span class="grow"><b>Sonno</b><small>${esc(sleepSub)}</small></span>
     </button>
-    <button class="card mood-card" data-act="mood"${future ? ' disabled' : ''}>
+    <button class="card mood-card${m ? '' : ' empty'}" data-act="mood"${future ? ' disabled' : ''}>
       <canvas data-mood="${m ? m.mood : 0}" width="44" height="44" aria-hidden="true"></canvas>
       <span class="grow"><b>Umore</b><small>${esc(moodSub)}</small></span>
     </button>
@@ -113,7 +113,7 @@ function eventsCard(doc) {
   }).join('')}<a class="ev-chip add" href="#abitudini/evento">+ Nuovo</a></div>` : '';
   return `<section class="card events-card${eventsOpen ? ' open' : ''}">
     <button class="ev-head" data-act="events" aria-expanded="${eventsOpen}">
-      <span class="ev-icon">${icon('sparkles')}</span>
+      <span class="ev-icon${on.length ? ' on' : ''}">${icon('sparkles')}</span>
       <span class="grow"><b>Eventi</b><small>${esc(summary)}</small></span>
       ${icon('down', 'chev')}
     </button>${chips}
