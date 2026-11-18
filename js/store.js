@@ -198,8 +198,8 @@ export function clearJournal(key) {
 // ---- Sleep ---------------------------------------------------------------
 
 /** The night ending on the morning of key: quality 1..5, hours optional. */
-export function setSleep(key, { q, h }) {
-  doc.sleep[key] = Number.isFinite(h) ? { q, h, t: Date.now() } : { q, t: Date.now() };
+export function setSleep(key, { q, h, factors = [] }) {
+  doc.sleep[key] = { q, ...(Number.isFinite(h) ? { h } : {}), ...(factors.length ? { factors } : {}), t: Date.now() };
   save();
 }
 

@@ -33,6 +33,52 @@ export const safeColor = (c) => (/^#[0-9a-f]{6}$/i.test(c) ? c : COLORS[0]);
 
 const dayFmt = new Intl.DateTimeFormat('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
 export const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+/** Selectable chips of a group, ending with "+ Altro" to type a new one. */
+export const chipList = (group, names, selected) => names.map((n) => `<button type="button" class="chip${selected.has(n) ? ' on' : ''}"
+  data-group="${group}" data-name="${esc(n)}" aria-pressed="${selected.has(n)}">${esc(n)}</button>`).join('')
+  + `<button type="button" class="chip add" data-add="${group}">+ Altro</button>`;
+
+const CHIP_MAX = 30;
+
+/**
+ * Returns start(btn): "+ Altro" becomes a text field in its place. Enter or leaving the field adds the typed
+ * name, selected, to sets[group] (an existing chip with the same name, ignoring case, is selected instead);
+ * Esc cancels. redraw(group) then redraws that group's chips.
+ */
+export function customChips(sets, redraw) {
+  return (btn) => {
+    const input = document.createElement('input');
+    input.className = 'chip chip-input';
+    input.maxLength = CHIP_MAX;
+    input.placeholder = 'Scrivi…';
+    input.enterKeyHint = 'done';
+    input.setAttribute('aria-label', 'Nuova voce');
+    const group = btn.dataset.add;
+    let closed = false;
+    const done = (keep) => {
+      if (closed) return;                             // redrawing removes the field and fires blur again
+      closed = true;
+      const typed = input.value.trim().replace(/\s+/g, ' ');
+      if (keep && typed) {
+        const same = [...input.parentNode.querySelectorAll('[data-name]')]
+          .find((c) => c.dataset.name.toLowerCase() === typed.toLowerCase());
+        sets[group].add(same ? same.dataset.name : typed);
+      }
+      redraw(group);
+    };
+    input.onkeydown = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        done(true);
+      }
+      if (e.key === 'Escape') done(false);
+    };
+    input.onblur = () => done(true);
+    btn.replaceWith(input);
+    input.focus();
+  };
+}
+
 export const fmtDay = (key) => cap(dayFmt.format(fromKey(key)));
 export const fmtShort = (key) => `${+key.slice(8)}/${+key.slice(5, 7)}`;
 export const fmtFull = (key) => `${fmtShort(key)}/${key.slice(0, 4)}`;

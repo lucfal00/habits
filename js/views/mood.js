@@ -1,27 +1,26 @@
 // "Umore" (#umore/<day>): morphing shape on a continuous slider, feelings, factors, note.
-import { moodOf, moodBand, MOOD_LABELS } from '../logic.js';
+import { moodOf, moodBand, MOOD_LABELS, recentCustom, addDays, CUSTOM_DAYS } from '../logic.js';
 import { setJournal, clearJournal } from '../store.js';
 import { animateShapes, redraw } from '../anim.js';
-import { esc, fmtDay } from '../ui.js';
+import { esc, fmtDay, chipList, customChips } from '../ui.js';
 
 const FEELINGS = {
   spiacevole: ['Stress', 'Ansia', 'Tristezza', 'Stanchezza', 'Irritazione', 'Preoccupazione', 'Solitudine', 'Frustrazione', 'Delusione'],
   neutro: ['Calma', 'Indifferenza', 'Concentrazione', 'Riflessione', 'Tranquillità', 'Noia'],
   piacevole: ['Felicità', 'Gratitudine', 'Serenità', 'Energia', 'Orgoglio', 'Entusiasmo', 'Relax', 'Fiducia', 'Amore'],
 };
+const ALL_FEELINGS = Object.values(FEELINGS).flat();
 const FACTORS = ['Lavoro', 'Studio', 'Famiglia', 'Amici', 'Partner', 'Salute', 'Sonno', 'Sport', 'Tempo libero', 'Meteo', 'Soldi', 'Casa'];
 const KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 let draft = null;   // { day, level, feelings: Set, factors: Set, note } kept across re-renders
 
-const chips = (group, names, selected) => names.map((n) => `<button type="button" class="chip${selected.has(n) ? ' on' : ''}"
-  data-group="${group}" data-name="${esc(n)}" aria-pressed="${selected.has(n)}">${esc(n)}</button>`).join('');
-
-/** Suggestions for the level's band, plus anything already chosen from other bands. */
-function feelingChips(d) {
-  const band = moodBand(Math.round(d.level));
-  const names = [...new Set([...FEELINGS[band], ...d.feelings])];
-  return chips('feelings', names, d.feelings);
+/** Suggestions (for feelings: the level's band), the user's own recent ones, plus anything already chosen. */
+function groupChips(doc, d, group) {
+  const since = addDays(d.day, -CUSTOM_DAYS);
+  const base = group === 'feelings' ? FEELINGS[moodBand(Math.round(d.level))] : FACTORS;
+  const own = recentCustom(doc.journal, group, group === 'feelings' ? ALL_FEELINGS : FACTORS, since);
+  return chipList(group, [...new Set([...base, ...own, ...d[group]])], d[group]);
 }
 
 export function render(el, { doc, param, today }) {
@@ -48,8 +47,8 @@ export function render(el, { doc, param, today }) {
       <input class="mood-slider" type="range" min="1" max="7" step="0.01" value="${d.level}" aria-label="Umore, da molto spiacevole a molto piacevole">
       <div class="mood-scale"><span>Molto spiacevole</span><span>Molto piacevole</span></div>
     </section>
-    <section class="card"><h2>Emozioni</h2><div class="chips" data-chips="feelings">${feelingChips(d)}</div></section>
-    <section class="card"><h2>Cosa influisce</h2><div class="chips">${chips('factors', FACTORS, d.factors)}</div></section>
+    <section class="card"><h2>Emozioni</h2><div class="chips" data-chips="feelings">${groupChips(doc, d, 'feelings')}</div></section>
+    <section class="card"><h2>Cosa influisce</h2><div class="chips" data-chips="factors">${groupChips(doc, d, 'factors')}</div></section>
     <section class="card"><h2>Nota</h2>
       <textarea class="mood-note" maxlength="500" rows="3" placeholder="Com’è andata la giornata?">${esc(d.note)}</textarea></section>
     <div class="btn-row mood-actions">
@@ -68,7 +67,7 @@ export function render(el, { doc, param, today }) {
     const b = moodBand(Math.round(lv));
     if (b !== band) {
       band = b;
-      feelingsBox.innerHTML = feelingChips(d);
+      feelingsBox.innerHTML = groupChips(doc, d, 'feelings');
     }
     canvas.level = lv;
     redraw(canvas);
@@ -94,8 +93,14 @@ export function render(el, { doc, param, today }) {
     };
     requestAnimationFrame(step);
   };
+  const startChip = customChips(d, (g) => { el.querySelector(`[data-chips="${g}"]`).innerHTML = groupChips(doc, d, g); });
   el.onclick = (e) => {
-    const chip = e.target.closest('.chip');
+    const add = e.target.closest('[data-add]');
+    if (add) {
+      startChip(add);
+      return;
+    }
+    const chip = e.target.closest('.chip[data-name]');
     if (chip) {
       const set = d[chip.dataset.group];
       const name = chip.dataset.name;

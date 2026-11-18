@@ -240,6 +240,22 @@ export const SLEEP_LABELS = ['Pessimo', 'Scarso', 'Discreto', 'Buono', 'Ottimo']
 /** The night ending on the morning of key (q 1..5, optional hours h), or null if none / cleared. */
 export const sleepOf = (doc, key) => (doc.sleep?.[key]?.q > 0 ? doc.sleep[key] : null);
 
+/** Days a custom chip stays offered after its last use (a typo fades away on its own). */
+export const CUSTOM_DAYS = 60;
+
+/**
+ * Names the user typed in `field` of `records` (day → record) from `since` on that are not in `known`,
+ * most recently used first.
+ */
+export function recentCustom(records, field, known, since) {
+  const last = new Map();
+  for (const [day, r] of Object.entries(records || {})) {
+    if (day < since || !Array.isArray(r?.[field])) continue;
+    for (const n of r[field]) if (!known.includes(n) && !(last.get(n) > day)) last.set(n, day);
+  }
+  return [...last].sort((a, b) => (a[1] < b[1] ? 1 : a[1] > b[1] ? -1 : 0)).map(([n]) => n);
+}
+
 const OUTCOME = {
   sleep: (doc, key) => sleepOf(doc, addDays(key, 1))?.q,           // the habit's day → the following night
   hours: (doc, key) => sleepOf(doc, addDays(key, 1))?.h,
@@ -409,7 +425,7 @@ const validReminders = (r) => !!r && typeof r === 'object' && offOrTime(r.sleep)
   && (r.weekly === undefined || typeof r.weekly === 'boolean');
 
 const validSleepDay = (s) => !!s && typeof s === 'object' && Number.isInteger(s.q) && s.q >= 0 && s.q <= 5
-  && (s.h === undefined || (Number.isFinite(s.h) && s.h >= 0 && s.h <= 24));
+  && (s.h === undefined || (Number.isFinite(s.h) && s.h >= 0 && s.h <= 24)) && strings(s.factors);
 
 function validHabit(h) {
   if (!h || typeof h.id !== 'string' || typeof h.name !== 'string') return false;

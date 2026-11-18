@@ -381,3 +381,16 @@ test('events: effects on mood (same day) and sleep (night after), validation, me
   assert.equal(r.doc.events[0].name, 'Amiche');
   assert.equal(L.happenedOn(r.doc, '2026-10-02', 'e'), false);
 });
+
+test('recentCustom: typed chips, newest first, only recent, defaults excluded', () => {
+  const rec = {
+    '2026-08-01': { factors: ['Vecchio'] },
+    '2026-11-01': { factors: ['Lavoro', 'Trasloco'] },
+    '2026-11-10': { factors: ['Esame'] },
+    '2026-11-12': { mood: 0 },
+  };
+  assert.deepEqual(L.recentCustom(rec, 'factors', ['Lavoro'], '2026-09-19'), ['Esame', 'Trasloco']);
+  assert.deepEqual(L.recentCustom(undefined, 'factors', [], '2026-01-01'), []);
+  assert.equal(L.validateDoc({ ...L.emptyDoc(), sleep: { '2026-10-27': { q: 3, factors: ['Caffè'], t: 1 } } }), true);
+  assert.equal(L.validateDoc({ ...L.emptyDoc(), sleep: { '2026-10-27': { q: 3, factors: [1], t: 1 } } }), false);
+});

@@ -408,6 +408,11 @@ details .rows li { padding-left: 0; padding-right: 0; }
 }
 .chip.on { border-color: var(--accent); color: var(--accent); font-weight: 500; }
 .chip.static { cursor: default; }
+.chip.add { border-style: dashed; color: var(--muted); }
+.chips .chip-input {
+  width: 10em; min-height: 0; margin: 0; padding: 7px 13px; border-radius: 999px; border: 1px solid var(--accent);
+  background: transparent; color: var(--text); font-size: 16px; line-height: 1.2; outline: none;   /* 16px: no iOS zoom */
+}
 .chip small { color: inherit; opacity: .7; }
 .mood-note { width: 100%; padding: 11px 12px; font: inherit; font-size: 16px; color: var(--text);
   border: 1px solid var(--line); border-radius: 12px; background: var(--bg); resize: vertical; }

@@ -1,15 +1,23 @@
 // "Sonno" (#sonno/<day>): the night ending on the morning of day — wave shape on a continuous slider, hours slept.
-import { sleepOf, addDays, fromKey, SLEEP_LABELS } from '../logic.js';
+import { sleepOf, addDays, fromKey, SLEEP_LABELS, recentCustom, CUSTOM_DAYS } from '../logic.js';
 import { setSleep, clearSleep } from '../store.js';
 import { animateShapes, redraw } from '../anim.js';
-import { fmtDay, fmtNum } from '../ui.js';
+import { fmtDay, fmtNum, chipList, customChips } from '../ui.js';
 
 const KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const HOURS_STEP = 0.5;
 const DEFAULT_HOURS = 7.5;
+const FACTORS = ['Stress', 'Pensieri', 'Caffeina', 'Alcol', 'Cena pesante', 'Schermi', 'Rumore', 'Caldo', 'Freddo',
+  'Dolori', 'Risvegli', 'Incubi', 'Sport la sera', 'Orari diversi'];
 const weekdayFmt = new Intl.DateTimeFormat('it-IT', { weekday: 'long' });
 
-let draft = null;   // { day, level, hours: number | null, saved } kept across re-renders
+let draft = null;   // { day, level, hours: number | null, factors: Set, saved } kept across re-renders
+
+/** The usual reasons, the user's own recent ones, plus anything already chosen. */
+function factorChips(doc, d) {
+  const own = recentCustom(doc.sleep, 'factors', FACTORS, addDays(d.day, -CUSTOM_DAYS));
+  return chipList('factors', [...new Set([...FACTORS, ...own, ...d.factors])], d.factors);
+}
 
 const fmtHours = (h) => (h == null ? '—' : `${fmtNum(h)} h`);
 
@@ -26,7 +34,9 @@ export function render(el, { doc, param, today }) {
   const day = KEY_RE.test(param) && param <= today ? param : today;
   if (!draft || draft.day !== day) {
     const s = sleepOf(doc, day);
-    draft = { day, level: s ? s.q : 3, hours: Number.isFinite(s?.h) ? s.h : null, saved: !!s };
+    draft = {
+      day, level: s ? s.q : 3, hours: Number.isFinite(s?.h) ? s.h : null, factors: new Set(s?.factors || []), saved: !!s,
+    };
   }
   const d = draft;
   const night = `Notte tra ${weekdayFmt.format(fromKey(addDays(day, -1)))} e ${fmtDay(day).toLowerCase()}`;
@@ -50,6 +60,7 @@ export function render(el, { doc, param, today }) {
       </div>
       <button class="icon-btn hours-clear" data-act="hclear" aria-label="Svuota le ore" ${d.hours == null ? 'hidden' : ''}>×</button>
     </section>
+    <section class="card"><h2>Cosa ha influito</h2><div class="chips" data-chips="factors">${factorChips(doc, d)}</div></section>
     <div class="btn-row mood-actions">
       <button class="btn primary" data-act="save">Salva</button>
       ${d.saved ? '<button class="btn danger" data-act="clear">Elimina</button>' : ''}
@@ -91,7 +102,22 @@ export function render(el, { doc, param, today }) {
     };
     requestAnimationFrame(step);
   };
+  const startChip = customChips(d, () => { el.querySelector('[data-chips="factors"]').innerHTML = factorChips(doc, d); });
   el.onclick = (e) => {
+    const add = e.target.closest('[data-add]');
+    if (add) {
+      startChip(add);
+      return;
+    }
+    const chip = e.target.closest('.chip[data-name]');
+    if (chip) {
+      const name = chip.dataset.name;
+      if (d.factors.has(name)) d.factors.delete(name);
+      else d.factors.add(name);
+      chip.classList.toggle('on', d.factors.has(name));
+      chip.setAttribute('aria-pressed', String(d.factors.has(name)));
+      return;
+    }
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (act === 'hinc' || act === 'hdec') {
       if (d.hours == null) setHours(lastHours(doc));
@@ -101,7 +127,7 @@ export function render(el, { doc, param, today }) {
     if (act === 'save') {
       draft = null;
       location.hash = '#oggi';
-      setSleep(day, { q: Math.round(d.level), h: d.hours ?? undefined });
+      setSleep(day, { q: Math.round(d.level), h: d.hours ?? undefined, factors: [...d.factors] });
     }
     if (act === 'clear' && confirm('Eliminare il sonno di questa notte?')) {
       draft = null;
