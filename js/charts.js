@@ -334,10 +334,10 @@ export function hoursBars(points, ariaLabel) {
 
 /** rows: habitEffects() output. span: smallest half-scale, so tiny differences stay small. */
 /** rows: habitEffects() output. Differences under 15 % of span are drawn gray (too small to mean much). */
-export function effectBars(rows, { span, value, tip }) {
+export function effectBars(rows, { span, value, tip, sub }) {
   const max = Math.max(span, ...rows.map((r) => Math.abs(r.diff)));
-  const items = rows.map((r) => `<li data-tip="${esc(tip(r))}">
-      <span class="eff-name">${esc(r.item.emoji || r.item.icon || '')} ${esc(r.item.name)}${r.kind === 'event' ? ' <small class="eff-kind" title="Evento">✦</small>' : ''}</span>
+  const items = rows.map((r) => `<li data-tip="${esc(tip(r))}"${r.weak ? ' class="weak"' : ''}>
+      <span class="eff-name">${esc(r.item.emoji || r.item.icon || '')} ${esc(r.item.name)}${r.kind === 'event' ? ' <small class="eff-kind" title="Evento">✦</small>' : ''}${sub ? `<small class="eff-sub">${esc(sub(r))}</small>` : ''}</span>
       <span class="eff-bar"><i class="${r.diff >= 0 ? 'up' : 'down'}${Math.abs(r.diff) < span * 0.15 ? ' flat' : ''}" style="width:${((Math.abs(r.diff) / max) * 50).toFixed(1)}%"></i></span>
       <b>${value(r.diff)}</b></li>`).join('');
   return `<div class="eff-axis" aria-hidden="true"><span></span><span><span>peggiora</span><span>migliora</span></span><span></span></div>

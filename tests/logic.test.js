@@ -298,7 +298,7 @@ test('bucketStats: mean sleep quality and hours per bucket', () => {
   assert.equal(week.nights, 2);
 });
 
-test('habitEffects: habit day vs next night (sleep, hours), same day (mood), 3+3 minimum', () => {
+test('habitEffects: habit day vs next night (sleep, hours), same day (mood), 2+2 minimum, waiting list', () => {
   const run = habit({ id: 'r', start: '2026-10-01' });
   const read = habit({ id: 'b', start: '2026-10-01' });
   const done = ['2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04'];
@@ -312,20 +312,26 @@ test('habitEffects: habit day vs next night (sleep, hours), same day (mood), 3+3
     d.sleep[k] = { q: good ? 5 : 2, h: good ? 8 : 6, t: 1 };
     d.journal[k] = { mood: done.includes(k) ? 6 : 3, feelings: [], factors: [], note: '', t: 1 };
   }
-  const sleep = L.habitEffects(d, '2026-10-01', '2026-10-08', 'sleep');
-  assert.equal(sleep.length, 1);                                // 'b' has only 2 days with
-  assert.equal(sleep[0].item.id, 'r');
+  const all = L.habitEffects(d, '2026-10-01', '2026-10-08', 'sleep');
+  assert.equal(all.rows.length, 2);                             // 'b': 2 with, 5 without
+  const sleep = all.rows.filter((r) => r.item.id === 'r');
+  assert.equal(sleep[0].weak, true);                            // 3 nights without
+  assert.equal(all.rows.find((r) => r.item.id === 'b').nWith, 2);
   assert.equal(sleep[0].kind, 'habit');
   assert.equal(sleep[0].nWith, 4);
   assert.equal(sleep[0].nWithout, 3);                           // 5, 6, 7 → nights 6, 7, 8; 8 skipped
   assert.equal(sleep[0].with, 5);
   assert.equal(sleep[0].without, 2);
   assert.equal(sleep[0].diff, 3);
-  const hours = L.habitEffects(d, '2026-10-01', '2026-10-08', 'hours');
-  assert.equal(hours[0].diff, 2);
-  const mood = L.habitEffects(d, '2026-10-01', '2026-10-08', 'mood');
-  assert.equal(mood[0].with, 6);
-  assert.equal(mood[0].without, 3);
+  const hours = L.habitEffects(d, '2026-10-01', '2026-10-08', 'hours').rows.find((r) => r.item.id === 'r');
+  assert.equal(hours.diff, 2);
+  const mood = L.habitEffects(d, '2026-10-01', '2026-10-08', 'mood').rows.find((r) => r.item.id === 'r');
+  assert.equal(mood.with, 6);
+  assert.equal(mood.without, 3);
+  // done every day: no comparison, listed as waiting
+  const w = L.habitEffects(d, '2026-10-01', '2026-10-04', 'mood');
+  assert.deepEqual(w.rows.map((x) => x.item.id), ['b']);         // 2 done, 2 not
+  assert.deepEqual(w.waiting.map((x) => [x.item.id, x.nWith, x.nWithout]), [['r', 4, 0]]);
 });
 
 test('sleepByLevel: each night with the completion of the day before', () => {
@@ -367,12 +373,12 @@ test('events: effects on mood (same day) and sleep (night after), validation, me
     d.sleep[k] = { q: met.includes(L.addDays(k, -1)) ? 5 : 3, t: 1 };
   }
   assert.equal(L.validateDoc(d), true);
-  const mood = L.habitEffects(d, '2026-10-01', '2026-10-09', 'mood');
+  const mood = L.habitEffects(d, '2026-10-01', '2026-10-09', 'mood').rows;
   assert.equal(mood[0].kind, 'event');
   assert.equal(mood[0].nWith, 3);
   assert.equal(mood[0].nWithout, 5);                                // 3, 5, 7, 8, 9; 1 Oct is before `since`
   assert.equal(mood[0].diff, 2);
-  assert.equal(L.habitEffects(d, '2026-10-01', '2026-10-08', 'sleep')[0].diff, 2);
+  assert.equal(L.habitEffects(d, '2026-10-01', '2026-10-08', 'sleep').rows[0].diff, 2);
   assert.deepEqual(L.eventsOn(d, '2026-10-04').map((e) => e.id), ['e']);
   assert.equal(L.validateDoc({ ...d, happened: { '2026-10-02': { e: { on: 2 } } } }), false);
   const newer = { ...L.emptyDoc(), events: [{ ...d.events[0], name: 'Amiche', updatedAt: 5 }], happened: { '2026-10-02': { e: { on: 0, t: 9 } } } };
@@ -393,4 +399,24 @@ test('recentCustom: typed chips, newest first, only recent, defaults excluded', 
   assert.deepEqual(L.recentCustom(undefined, 'factors', [], '2026-01-01'), []);
   assert.equal(L.validateDoc({ ...L.emptyDoc(), sleep: { '2026-10-27': { q: 3, factors: ['Caffè'], t: 1 } } }), true);
   assert.equal(L.validateDoc({ ...L.emptyDoc(), sleep: { '2026-10-27': { q: 3, factors: [1], t: 1 } } }), false);
+});
+
+test('tagEffects: own tags vs the other recorded days, 2+2 minimum', () => {
+  const d = L.emptyDoc();
+  const day = (i) => `2026-11-0${i}`;
+  [[6, ['Amici']], [7, ['Amici', 'Lavoro']], [3, ['Lavoro']], [2, ['Lavoro']], [4, []], [5, ['Unico']]]
+    .forEach(([mood, factors], i) => { d.journal[day(i + 1)] = { mood, feelings: [], factors, note: '', t: 1 }; });
+  d.journal[day(7)] = { mood: 0, feelings: [], factors: ['Amici'], note: '', t: 1 };        // cleared: ignored
+  const m = L.tagEffects(d, day(1), day(9), 'mood');
+  assert.equal(m.days, 6);
+  assert.deepEqual(m.rows.map((r) => r.item.name), ['Amici', 'Lavoro']);                   // 'Unico': 1 day
+  assert.equal(m.rows[0].with, 6.5);
+  assert.equal(m.rows[0].without, 3.5);
+  assert.equal(m.rows[0].weak, true);
+  d.sleep = { [day(1)]: { q: 2, h: 5, factors: ['Caffeina'], t: 1 }, [day(2)]: { q: 1, h: 6, factors: ['Caffeina'], t: 1 },
+    [day(3)]: { q: 5, h: 8, t: 1 }, [day(4)]: { q: 4, t: 1 } };
+  assert.equal(L.tagEffects(d, day(1), day(9), 'sleep').rows[0].diff, -3);
+  const h = L.tagEffects(d, day(1), day(9), 'hours');
+  assert.equal(h.days, 3);
+  assert.equal(h.rows.length, 0);                                                        // 1 night without
 });

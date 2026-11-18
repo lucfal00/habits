@@ -261,17 +261,34 @@ const OUTCOME = {
   hours: (doc, key) => sleepOf(doc, addDays(key, 1))?.h,
   mood: (doc, key) => moodOf(doc, key)?.mood,                       // same day
 };
-const MIN_DAYS = 3;
+/** Window of "Cosa influenza umore e sonno", whatever period the statistics show. */
+export const EFFECT_DAYS = 90;
+const MIN_SIDE = 2;                 // days on each side for a comparison
+const SURE_SIDE = 4;                // fewer on either side: shown as "pochi dati"
+
+/** A comparison row: mean outcome with vs without, or null when either side is too small. */
+function compare(item, kind, yes, no) {
+  if (yes.length < MIN_SIDE || no.length < MIN_SIDE) return null;
+  const w = mean(yes);
+  const wo = mean(no);
+  return {
+    item, kind, with: w, without: wo, nWith: yes.length, nWithout: no.length, diff: w - wo,
+    weak: Math.min(yes.length, no.length) < SURE_SIDE,
+  };
+}
+const byDiff = (a, b) => Math.abs(b.diff) - Math.abs(a.diff);
 
 /**
  * Per active habit and event over [from, to]: mean outcome on days with it vs days without.
  * Habits: completed vs applied but not completed (skipped, paused, unscheduled days left out).
  * Events: happened vs not happened, from the day the event was created.
- * Rows with fewer than 3 days in either group are omitted. Sorted by the size of the difference.
+ * rows: at least 2 days on each side, sorted by the size of the difference (weak: fewer than 4 on a side).
+ * waiting: done (or not) almost always, with 4+ recorded days: no comparison yet.
  */
 export function habitEffects(doc, from, to, kind) {
   const outcome = OUTCOME[kind];
-  const out = [];
+  const rows = [];
+  const waiting = [];
   const add = (item, type, split) => {
     const yes = [];
     const no = [];
@@ -280,10 +297,9 @@ export function habitEffects(doc, from, to, kind) {
       const v = side == null ? undefined : outcome(doc, k);
       if (Number.isFinite(v)) (side ? yes : no).push(v);
     }
-    if (yes.length < MIN_DAYS || no.length < MIN_DAYS) return;
-    const w = mean(yes);
-    const wo = mean(no);
-    out.push({ item, kind: type, with: w, without: wo, nWith: yes.length, nWithout: no.length, diff: w - wo });
+    const row = compare(item, type, yes, no);
+    if (row) rows.push(row);
+    else if (yes.length + no.length >= 2 * MIN_SIDE) waiting.push({ item, kind: type, nWith: yes.length, nWithout: no.length });
   };
   for (const h of activeHabits(doc)) {
     add(h, 'habit', (k) => {
@@ -292,7 +308,28 @@ export function habitEffects(doc, from, to, kind) {
     });
   }
   for (const e of activeEvents(doc)) add(e, 'event', (k) => (k < e.since ? null : happenedOn(doc, k, e.id)));
-  return out.sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
+  return { rows: rows.sort(byDiff), waiting };
+}
+
+/**
+ * The user's own tags over [from, to]: mood factors ("Cosa influisce") for mood, sleep factors
+ * ("Cosa ha influito") for sleep quality and hours. Per tag: mean outcome of the days tagged vs the other
+ * recorded days. days: recorded days (nights) in the window.
+ */
+export function tagEffects(doc, from, to, kind) {
+  const recs = [];
+  for (const k of days(from, to)) {
+    const r = kind === 'mood' ? moodOf(doc, k) : sleepOf(doc, k);
+    const v = kind === 'mood' ? r?.mood : kind === 'sleep' ? r?.q : r?.h;
+    if (Number.isFinite(v)) recs.push({ v, tags: r.factors || [] });
+  }
+  const rows = [];
+  for (const tag of new Set(recs.flatMap((r) => r.tags))) {
+    const row = compare({ name: tag }, 'tag', recs.filter((r) => r.tags.includes(tag)).map((r) => r.v),
+      recs.filter((r) => !r.tags.includes(tag)).map((r) => r.v));
+    if (row) rows.push(row);
+  }
+  return { rows: rows.sort(byDiff), days: recs.length };
 }
 
 /** Over [from, to]: recorded days, mean completion per band, most frequent feelings and factors. */

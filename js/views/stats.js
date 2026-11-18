@@ -2,7 +2,7 @@
 // which habits go with better sleep / mood; per-habit detail.
 import {
   activeHabits, addDays, fromKey, dayPercent, habitDayFraction, periodPercent, currentStreak, bestStreak, valueOf,
-  moodStats, moodByLevel, sleepByLevel, periodRange, shiftPeriod, bucketStats, habitEffects, MOOD_LABELS, SLEEP_LABELS,
+  moodStats, moodByLevel, sleepByLevel, periodRange, shiftPeriod, bucketStats, habitEffects, tagEffects, EFFECT_DAYS, MOOD_LABELS, SLEEP_LABELS,
   eventsOn,
 } from '../logic.js';
 import {
@@ -19,9 +19,24 @@ let effect = 'mood';                      // outcome compared in "Da cosa dipend
 
 const EFFECTS = [['mood', 'Umore'], ['sleep', 'Sonno'], ['hours', 'Ore']];
 const EFFECT = {
-  sleep: { span: 1, unit: '', count: 'notti', intro: 'Qualità del sonno la notte dopo i giorni con l’abitudine fatta o l’evento successo, rispetto ai giorni senza.' },
-  hours: { span: 1, unit: ' h', count: 'notti', intro: 'Ore dormite la notte dopo i giorni con l’abitudine fatta o l’evento successo, rispetto ai giorni senza.' },
-  mood: { span: 1.5, unit: '', count: 'giorni', intro: 'Umore nei giorni con l’abitudine fatta o l’evento successo, rispetto ai giorni senza. In grigio le differenze piccole.' },
+  mood: {
+    span: 1.5, unit: '', count: 'giorni', recorded: 'Umore segnato',
+    tags: 'L’umore dei giorni in cui hai segnato la voce in «Cosa influisce», rispetto agli altri.',
+    tagsEmpty: 'Segna in Umore «Cosa influisce»: una voce compare qui con almeno 2 giorni con e 2 senza.',
+    habits: 'L’umore nei giorni con l’abitudine fatta o l’evento successo, rispetto a quando no.',
+  },
+  sleep: {
+    span: 1, unit: '', count: 'notti', recorded: 'Sonno segnato',
+    tags: 'Il sonno delle notti in cui hai segnato la voce in «Cosa ha influito», rispetto alle altre.',
+    tagsEmpty: 'Segna in Sonno «Cosa ha influito»: una voce compare qui con almeno 2 notti con e 2 senza.',
+    habits: 'Il sonno la notte dopo i giorni con l’abitudine fatta o l’evento successo, rispetto a quando no.',
+  },
+  hours: {
+    span: 1, unit: ' h', count: 'notti', recorded: 'Ore segnate',
+    tags: 'Le ore dormite nelle notti in cui hai segnato la voce in «Cosa ha influito», rispetto alle altre.',
+    tagsEmpty: 'Segna in Sonno le ore e «Cosa ha influito»: una voce compare qui con almeno 2 notti con e 2 senza.',
+    habits: 'Le ore dormite la notte dopo i giorni con l’abitudine fatta o l’evento successo, rispetto a quando no.',
+  },
 };
 const wide = matchMedia('(min-width: 1000px)');   // two columns (style.css)
 let refreshStats = null;
@@ -168,23 +183,52 @@ function sleepHabitsCard(doc, from, to, grow) {
     </section>`;
 }
 
-function effectsSection(kind, doc, r, today) {
-  const end = r.to < today ? r.to : today;
+/** Why a habit or event has no comparison yet. */
+function waitLabel(w) {
+  const ev = w.kind === 'event';
+  if (!w.nWithout) return ev ? 'sempre' : 'sempre fatta';
+  if (!w.nWith) return ev ? 'mai' : 'mai fatta';
+  return w.nWith > w.nWithout ? (ev ? 'quasi sempre' : 'quasi sempre fatta') : (ev ? 'quasi mai' : 'quasi mai fatta');
+}
+
+/** "Cosa influenza umore e sonno": always the last 90 days, whatever period the other charts show. */
+function effectsSection(doc, today) {
+  const from = addDays(today, -(EFFECT_DAYS - 1));
   const e = EFFECT[effect];
-  const rows = habitEffects(doc, r.from, end, effect);
+  const tags = tagEffects(doc, from, today, effect);
+  const { rows, waiting } = habitEffects(doc, from, today, effect);
   const seg = EFFECTS.map(([v, label]) => `<label class="pick"><input type="radio" name="effect" value="${v}"
     ${effect === v ? 'checked' : ''}><span>${label}</span></label>`).join('');
-  const tip = (x) => `${effect === 'mood' ? 'Nei giorni' : 'Dopo i giorni'} con ${x.item.name}: ${fmt1(x.with)}${e.unit}`
-    + ` (${x.nWith} ${e.count}) · senza: ${fmt1(x.without)}${e.unit} (${x.nWithout} ${e.count})`;
-  const body = rows.length
-    ? effectBars(rows, { span: e.span, value: (d) => signed(d) + e.unit, tip })
-    : `<p class="muted">Servono almeno 3 giorni con un’abitudine fatta o un evento successo e 3 senza, con
-      ${effect === 'mood' ? 'l’umore' : 'il sonno'} registrato.${kind === 'settimana' ? ' Prova Mese o 6 mesi.' : ''}</p>`;
-  return `<section class="card st-effects"><h2>Da cosa dipendono umore e sonno</h2>
+  const few = (x) => (x.weak ? ' · pochi dati' : '');
+  const side = (x, n) => `${fmt1(x)}${e.unit} (${n} ${e.count})`;
+  const bars = (list, sub, tip) => effectBars(list, { span: e.span, value: (d) => signed(d) + e.unit, tip, sub });
+  const tagBody = tags.rows.length
+    ? bars(tags.rows, (x) => `${x.nWith} ${e.count}${few(x)}`,
+      (x) => `Con ${x.item.name}: ${side(x.with, x.nWith)} · altri: ${side(x.without, x.nWithout)}`)
+    : `<p class="muted">${e.tagsEmpty}</p>`;
+  const habBody = rows.length
+    ? bars(rows, (x) => `${x.nWith} sì · ${x.nWithout} no${few(x)}`,
+      (x) => `${effect === 'mood' ? 'Nei giorni' : 'Dopo i giorni'} con ${x.item.name}: ${side(x.with, x.nWith)}`
+        + ` · senza: ${side(x.without, x.nWithout)}`)
+    : `<p class="muted">Ancora nessun confronto: servono almeno 2 ${e.count} con e 2 senza.</p>`;
+  const wait = waiting.length ? `<h3 class="eff-h">Ancora senza confronto</h3>
+      <p class="muted chart-note">Le fai (o non le fai) sempre: servono anche giorni diversi.</p>
+      <div class="eff-wait">${waiting.map((w) => `<span>${esc(w.item.emoji || w.item.icon || '')}${w.kind === 'event' ? ' ✦' : ''}
+        ${esc(w.item.name)} · ${waitLabel(w)}</span>`).join('')}</div>` : '';
+  return `<section class="card st-effects"><h2>Cosa influenza umore e sonno</h2>
       <div class="seg effect-seg">${seg}</div>
-      <p class="muted chart-note">${e.intro}</p>
-      ${body}
-      <p class="muted eff-foot">È una correlazione, non per forza una causa.</p>
+      <p class="muted chart-note">Ultimi ${EFFECT_DAYS} giorni, qualunque periodo tu stia guardando.</p>
+      <div class="eff-meter"><span>${e.recorded}</span>
+        <span class="eff-track"><i style="width:${Math.min(100, (tags.days / EFFECT_DAYS) * 100).toFixed(1)}%"></i></span>
+        <span>${tags.days} ${e.count}</span></div>
+      <h3 class="eff-h">Quello che segni tu</h3>
+      <p class="muted chart-note">${e.tags}</p>
+      ${tagBody}
+      <h3 class="eff-h">Abitudini ed eventi</h3>
+      <p class="muted chart-note">${e.habits}</p>
+      ${habBody}
+      ${wait}
+      <p class="muted eff-foot">È una correlazione, non per forza una causa. Le righe sbiadite hanno pochi dati.</p>
     </section>`;
 }
 
@@ -228,7 +272,7 @@ function overview(el, doc, today, refresh) {
     <section class="card" data-grow="heat"><h2>Ultimi 12 mesi</h2>${heatmap((k) => dayPercent(doc, k), 'var(--accent)', today)}</section>
     ${moodSection(doc, period, r, stats, labels, today, grow)}
     ${sleepSection(period, doc, r, stats, labels, today, grow)}
-    ${effectsSection(period, doc, r, today)}
+    ${effectsSection(doc, today)}
     <div class="st-habits"><h2 class="list-title">Per abitudine</h2>
     <ul class="card list rows">${rows}</ul></div>
     </div>`;

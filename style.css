@@ -480,6 +480,14 @@ details .rows li { padding-left: 0; padding-right: 0; }
 .eff-axis { display: grid; grid-template-columns: minmax(0, 1fr) 46% 3.4em; gap: 8px; margin-bottom: 6px; font-size: .75rem; color: var(--muted); }
 .eff-axis span { display: flex; justify-content: space-between; }
 .eff-foot { margin: 12px 0 0; font-size: .78rem; }
+.effects li.weak { opacity: .5; }
+.eff-sub { display: block; font-size: .72rem; color: var(--muted); margin-top: 1px; white-space: normal; }
+.eff-h { font-size: .85rem; font-weight: 600; margin: 18px 0 2px; }
+.eff-meter { display: flex; align-items: center; gap: 8px; font-size: .78rem; color: var(--muted); margin: 2px 0 4px; }
+.eff-track { flex: 1; height: 3px; border-radius: 3px; background: var(--track); overflow: hidden; }
+.eff-track i { display: block; height: 100%; background: var(--accent); }
+.eff-wait { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.eff-wait span { border: 1px dashed var(--track); border-radius: 999px; padding: 4px 10px; font-size: .78rem; color: var(--muted); }
 
 /* ---- Wide screens: Statistiche cards in two columns, related cards side by side ---- */
 .list-title { margin: 20px 4px 10px; }
